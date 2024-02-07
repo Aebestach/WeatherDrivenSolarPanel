@@ -6,6 +6,7 @@ using Kopernicus.Components;
 using KSP.Localization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using Contracts.Agents.Mentalities;
 
 namespace weatherDrivenSolar
 {
@@ -285,8 +286,8 @@ namespace weatherDrivenSolar
                                     totalFlow += (starFlux * panelEffectivness) /
                                                  (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                                 }
-                                //CheckWeather = CheckInStorm();
-                                totalFlow *= 1f;
+                                CheckWeather = CheckInStorm();
+                                totalFlow *= CheckWeather;
                                 // Restore Tracking Speed
                                 trackingSpeed = oldTrackingSpeed;
                             }
@@ -384,7 +385,44 @@ namespace weatherDrivenSolar
             }
             else
             {
-                base.PostCalculateTracking(trackingLOS, trackingDirection);
+                //base.PostCalculateTracking(trackingLOS, trackingDirection);
+                // Calculate sun AOA
+                sunAOA = 0f;
+                Vector3 trackDir = (trackingBody.transform.position - panelRotationTransform.position).normalized;
+                if (!trackingLOS)
+                {
+                    sunAOA = 0f;
+                    status = Localizer.Format("#Kopernicus_UI_PanelBlocked", blockingObject);
+                    return;
+                }
+
+                status = SP_status_DirectSunlight;
+                if (panelType == PanelType.FLAT)
+                {
+                    sunAOA = Mathf.Clamp(Vector3.Dot(trackingDotTransform.forward, trackDir), 0f, 1f);
+                }
+                else if (panelType != PanelType.CYLINDRICAL)
+                {
+                    sunAOA = 0.25f;
+                }
+                else
+                {
+                    Vector3 direction;
+                    if (alignType == PanelAlignType.PIVOT)
+                    {
+                        direction = trackingDotTransform.forward;
+                    }
+                    else if (alignType != PanelAlignType.X)
+                    {
+                        direction = alignType != PanelAlignType.Y ? part.partTransform.forward : part.partTransform.up;
+                    }
+                    else
+                    {
+                        direction = part.partTransform.right;
+                    }
+
+                    sunAOA = (1f - Mathf.Abs(Vector3.Dot(direction, trackDir))) * 0.318309873f;
+                }
             }
         }
 
@@ -610,52 +648,6 @@ namespace weatherDrivenSolar
             return 1f;
         }
 
-        /*public Double CalculateFluxAt(Vessel vessel, CelestialBody sun)
-        {
-            // Get sunVector
-            Boolean directSunlight = false;
-            Vector3 integratorPosition = vessel.transform.position;
-            Vector3d scaledSpace = ScaledSpace.LocalToScaledSpace(integratorPosition);
-            Vector3 position = sun.scaledBody.transform.position;
-            Double scale = Math.Max((position - scaledSpace).magnitude, 1);
-            Vector3 sunVector = (position - scaledSpace) / scale;
-            Ray ray = new Ray(ScaledSpace.LocalToScaledSpace(integratorPosition), sunVector);
-
-            // Get Thermal Stats
-            if (vessel.mainBody.atmosphere)
-            {
-                FlightIntegrator FI = vessel.GetComponent<FlightIntegrator>();
-                vessel.mainBody.GetAtmoThermalStats(true, sun, sunVector, Vector3d.Dot(sunVector, vessel.upAxis), vessel.upAxis, vessel.altitude, out FI.atmosphereTemperatureOffset, out FI.bodyEmissiveFlux, out FI.bodyAlbedoFlux);
-
-            }
-
-            // Get Solar Flux
-            Double realDistanceToSun = 0;
-            if (!Physics.Raycast(ray, out RaycastHit raycastHit, Single.MaxValue, ModularFlightIntegrator.SunLayerMask))
-            {
-                directSunlight = true;
-                realDistanceToSun = scale * ScaledSpace.ScaleFactor - sun.Radius;
-            }
-            else if (raycastHit.transform.GetComponent<ScaledMovement>().celestialBody == sun)
-            {
-                realDistanceToSun = ScaledSpace.ScaleFactor * raycastHit.distance;
-                directSunlight = true;
-            }
-
-            if (directSunlight)
-            {
-                if (realDistanceToSun != 0)
-                {
-                    return PhysicsGlobals.SolarLuminosity / (12.5663706143592 * realDistanceToSun * realDistanceToSun);
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
-            return 0;
-        }*/
     }
 }
 
