@@ -11,40 +11,7 @@ namespace weatherDrivenSolar
 {
     public class weatherDrivenSolar : ModuleDeployableSolarPanel
     {
-        public float CheckInStorm()
-        {
-            float densitie;
-            float reFactor;
-            var layers = CloudsManager.GetObjectList();
-            foreach (var layer in layers)
-            {
-                reFactor = 1f;
-                if (layer.Name == "Duna-duststorm-big")
-                {
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    print("densitie\t" + densitie);
-                    if (densitie >= 0.5f)
-                    {
-                        //Scope limited to (-0.4,0.3)
-                        reFactor = 1f - densitie * 1.4f;
-                        //status = "be effected";
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.5f;
-                        //Scope limited to (0.7,1)
-                        reFactor = 1f - (0.3f * den);
-                    }
-                    print("reFactor\t" + reFactor);
-                    return reFactor;
-                }
-            }
-            return 1f;
-        }
+
 
         //Strings for Localization
         private static readonly string SP_status_DirectSunlight = Localizer.Format("#Kopernicus_UI_DirectSunlight");  // "Direct Sunlight"
@@ -232,8 +199,6 @@ namespace weatherDrivenSolar
             }
         }
 
-
-
         public override void PostCalculateTracking(bool trackingLOS, Vector3 trackingDirection)
         {
             if (KopernicusStar.UseMultiStarLogic)
@@ -329,12 +294,14 @@ namespace weatherDrivenSolar
                     options), false, UISkinManager.GetSkin("MainMenuSkin"));
             }
         }
+
         public void SetTrackingBody(CelestialBody sun)
         {
             _manualTracking = true;
             trackingBody = sun;
             GetTrackingBodyTransforms();
         }
+
         public override void OnStart(StartState state)
         {
             base.OnStart(state);
@@ -412,8 +379,40 @@ namespace weatherDrivenSolar
             return null;
         }
 
-
-
+        public float CheckInStorm()
+        {
+            float densitie;
+            float reFactor;
+            var layers = CloudsManager.GetObjectList();
+            foreach (var layer in layers)
+            {
+                reFactor = 1f;
+                if (layer.Name == "Duna-duststorm-big")
+                {
+                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    print("densitie\t" + densitie);
+                    if (densitie >= 0.5f)
+                    {
+                        //Scope limited to (-0.4,0.3)
+                        reFactor = 1f - densitie * 1.4f;
+                        //status = "be effected";
+                        if (reFactor < 0f)
+                        {
+                            return 0f;
+                        }
+                    }
+                    else
+                    {
+                        float den = densitie / 0.5f;
+                        //Scope limited to (0.7,1)
+                        reFactor = 1f - (0.3f * den);
+                    }
+                    print("reFactor\t" + reFactor);
+                    return reFactor;
+                }
+            }
+            return 1f;
+        }
 
         /*public Double CalculateFluxAt(Vessel vessel, CelestialBody sun)
         {
