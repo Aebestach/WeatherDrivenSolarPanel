@@ -207,7 +207,7 @@ namespace weatherDrivenSolar
                             Double totalFlow = 0;
                             flowRate = 0;
                             _flowRate = 0;
-                            //Double bestFlux = 0;
+                            Double bestFlux = 0;
                             for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
                             {
                                 KopernicusStar star = KopernicusStar.Stars[s];
@@ -234,11 +234,11 @@ namespace weatherDrivenSolar
                                 starFlux = star.CalculateFluxAt(vessel) * starFluxAtHome;
 
                                 //Check if star has better flux
-                                /*if (bestFlux < starFlux)
+                                if (bestFlux < starFlux)
                                 {
                                     bestFlux = starFlux;
                                     bestStar = star;
-                                }*/
+                                }
 
                                 // Add to TotalFlux and EC tally
                                 totalFlux += starFlux;
@@ -247,7 +247,7 @@ namespace weatherDrivenSolar
                                 float atmoDensityMult = 1;
                                 float atmoAngleMult = 1;
                                 float tempMult = 1;
-                                float CheckWeather = 1;
+                                float CheckWeather = 1f;
                                 Vector3d localSpace = ScaledSpace.ScaledToLocalSpace(star.target.position);
                                 if (this.vessel.atmDensity > 0)
                                 {
@@ -257,7 +257,6 @@ namespace weatherDrivenSolar
                                     Vector3 horizonVector = new Vector3(0, Mathf.Sin(Mathf.Deg2Rad * horizonAngle),
                                         Mathf.Cos(Mathf.Deg2Rad * horizonAngle));
                                     float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.sun.position);
-
                                     Double gravAccelParameter = (vessel.mainBody.gravParameter /
                                                                  Math.Pow(
                                                                      vessel.mainBody.Radius +
@@ -286,9 +285,7 @@ namespace weatherDrivenSolar
                                                  (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                                 }
                                 //CheckWeather = CheckInStorm();
-                                CheckWeather = 1f;
-                                totalFlow *= CheckWeather;
-                                print("totalFlow\t" + totalFlow);
+                                totalFlow *= 1f;
                                 // Restore Tracking Speed
                                 trackingSpeed = oldTrackingSpeed;
                             }
@@ -555,6 +552,10 @@ namespace weatherDrivenSolar
         public new void OnDestroy()
         {
             if (KopernicusStar.UseMultiStarLogic)
+            {
+                TimingManager.LateUpdateRemove(TimingManager.TimingStage.Early, EarlyLateUpdate);
+            }
+            else
             {
                 TimingManager.LateUpdateRemove(TimingManager.TimingStage.Early, EarlyLateUpdate);
             }
