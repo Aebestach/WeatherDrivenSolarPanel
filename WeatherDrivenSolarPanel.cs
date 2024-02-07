@@ -12,12 +12,10 @@ namespace weatherDrivenSolarPanel
     {
         //Strings for Localization
         private static readonly string SP_status_DirectSunlight = Localizer.Format("#Kopernicus_UI_DirectSunlight");  // "Direct Sunlight"
-        //private static readonly string SP_status_Underwater = Localizer.Format("#Kopernicus_UI_Underwater");          // "Underwater"
         private static readonly string button_Auto = Localizer.Format("#Kopernicus_UI_AutoTracking");                 // "Auto"
         private static readonly string SelectBody = Localizer.Format("#Kopernicus_UI_SelectBody");                    // "Select Tracking Body"
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
 
-        private static readonly string volumetricClouds_dustBlock = Localizer.Format("#WDS_VolumetricClouds_dustBlock");            // "Affected by dust storms"
 
         //panel power cached value
         private double _cachedFlowRate = 0;
@@ -40,7 +38,11 @@ namespace weatherDrivenSolarPanel
         public override void FixedUpdate()
         {
             base.FixedUpdate();
-
+            int flagFactor = 10;
+            if (KopernicusStar.UseMultiStarLogic)
+            {
+                flagFactor = 50;
+            }
             //Calculations copied from Kopernicus solving for the energy output of solar panels for single, or multiple stars,
             //while including impact factors for True volumetric clouds.
             frameTimer++;
@@ -49,7 +51,7 @@ namespace weatherDrivenSolarPanel
                 if ((deployState == ModuleDeployablePart.DeployState.EXTENDED))
                 {
                     if (frameTimer >
-                        (20 * Kopernicus.RuntimeUtility.RuntimeUtility.KopernicusConfig.SolarRefreshRate))
+                        (flagFactor * Kopernicus.RuntimeUtility.RuntimeUtility.KopernicusConfig.SolarRefreshRate))
                     {
                         CelestialBody trackingStar = trackingBody;
                         frameTimer = 0;
@@ -98,16 +100,9 @@ namespace weatherDrivenSolarPanel
                             float atmoDensityMult = 1;
                             float atmoAngleMult = 1;
                             float tempMult = 1;
-                            float CheckWeather = 1f;
-                            Vector3d localSpace = ScaledSpace.ScaledToLocalSpace(star.target.position);
+                            float CheckWeatherValue = 1f;
                             if (this.vessel.atmDensity > 0)
                             {
-                                /*float horizonAngle = (float)Math.Acos(FlightGlobals.currentMainBody.Radius /
-                                                                      (FlightGlobals.currentMainBody.Radius +
-                                                                       FlightGlobals.ship_altitude));
-
-                                Vector3 horizonVector = new Vector3(0, Mathf.Sin(Mathf.Deg2Rad * horizonAngle),Mathf.Cos(Mathf.Deg2Rad * horizonAngle));*/
-
                                 float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.sun.position);
                                 Double gravAccelParameter = (vessel.mainBody.gravParameter /
                                                              Math.Pow(
@@ -122,7 +117,8 @@ namespace weatherDrivenSolarPanel
                                     AtmosphericAttenutationAirMassMultiplier.Evaluate(massOfAirColumn);
                                 atmoAngleMult =
                                     AtmosphericAttenutationSolarAngleMultiplier.Evaluate(sunZenithAngleDeg);
-                                CheckWeather = CheckInStorm();
+
+                                CheckWeatherValue = CheckWeather();
                             }
 
                             if ((sunAOA != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
@@ -138,7 +134,7 @@ namespace weatherDrivenSolarPanel
                                              (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                             }
 
-                            totalFlow *= CheckWeather;
+                            totalFlow *= CheckWeatherValue;
 
                             // Restore Tracking Speed
                             trackingSpeed = oldTrackingSpeed;
@@ -203,7 +199,7 @@ namespace weatherDrivenSolarPanel
                 return;
             }
 
-            status = SP_status_DirectSunlight;
+            //status = SP_status_DirectSunlight;
             if (panelType == PanelType.FLAT)
             {
                 sunAOA = Mathf.Clamp(Vector3.Dot(trackingDotTransform.forward, trackDir), 0f, 1f);
@@ -317,9 +313,9 @@ namespace weatherDrivenSolarPanel
             AtmosphericAttenutationSolarAngleMultiplier.Add(90f, 0.336f, -0.0185f, -0.0185f);
             AtmosphericAttenutationSolarAngleMultiplier.Add(105f, 0.100f, -0.008f, -0.008f);
             AtmosphericAttenutationSolarAngleMultiplier.Add(120f, 0.050f, 0f, 0f);
-
             if (KopernicusStar.UseMultiStarLogic)
             {
+
                 if (HighLogic.LoadedSceneIsFlight)
                 {
                     TimingManager.LateUpdateAdd(TimingManager.TimingStage.Early, EarlyLateUpdate);
@@ -342,18 +338,14 @@ namespace weatherDrivenSolarPanel
                     }
                 }
             }
-            else
-            {
-                if (HighLogic.LoadedSceneIsFlight)
-                {
-                    TimingManager.LateUpdateAdd(TimingManager.TimingStage.Early, EarlyLateUpdate);
-                }
-            }
         }
 
         public new void OnDestroy()
         {
-            TimingManager.LateUpdateRemove(TimingManager.TimingStage.Early, EarlyLateUpdate);
+            if (KopernicusStar.UseMultiStarLogic)
+            {
+                TimingManager.LateUpdateRemove(TimingManager.TimingStage.Early, EarlyLateUpdate);
+            }
         }
 
         private CelestialBody GetTrackingBodyFromName(string name)
@@ -369,7 +361,7 @@ namespace weatherDrivenSolarPanel
             return null;
         }
 
-        public float CheckInStorm()
+        public float CheckWeather()
         {
             float densitie;
             float reFactor;
@@ -384,8 +376,7 @@ namespace weatherDrivenSolarPanel
                     {
                         //Scope limited to (-0.4,0.44)
                         reFactor = 1f - densitie * 1.4f;
-                        /*Fields["status"].guiActive = true;
-                        status = volumetricClouds_dustBlock;*/
+                        status = Localizer.Format("#WDS_VolumetricClouds_dustBlock");
                         if (reFactor < 0f)
                         {
                             return 0f;
@@ -396,6 +387,7 @@ namespace weatherDrivenSolarPanel
                         float den = densitie / 0.4f;
                         //Scope limited to (0.6,1)
                         reFactor = 1f - (0.4f * den);
+                        status = SP_status_DirectSunlight;
                     }
                     return reFactor;
                 }
