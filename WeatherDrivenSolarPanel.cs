@@ -16,7 +16,6 @@ namespace weatherDrivenSolarPanel
         private static readonly string SelectBody = Localizer.Format("#Kopernicus_UI_SelectBody");                    // "Select Tracking Body"
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
 
-
         //panel power cached value
         private double _cachedFlowRate = 0;
         private float cachedFlowRate = 0;
@@ -43,6 +42,7 @@ namespace weatherDrivenSolarPanel
             {
                 flagFactor = 50;
             }
+            float test = 1;
             //Calculations copied from Kopernicus solving for the energy output of solar panels for single, or multiple stars,
             //while including impact factors for True volumetric clouds.
             frameTimer++;
@@ -133,9 +133,8 @@ namespace weatherDrivenSolarPanel
                                 totalFlow += (starFlux * panelEffectivness) /
                                              (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                             }
-
                             totalFlow *= CheckWeatherValue;
-
+                            test = CheckWeatherValue;
                             // Restore Tracking Speed
                             trackingSpeed = oldTrackingSpeed;
                         }
@@ -376,7 +375,6 @@ namespace weatherDrivenSolarPanel
                     {
                         //Scope limited to (-0.4,0.44)
                         reFactor = 1f - densitie * 1.4f;
-                        status = Localizer.Format("#WDS_VolumetricClouds_dustBlock");
                         if (reFactor < 0f)
                         {
                             return 0f;
@@ -387,7 +385,6 @@ namespace weatherDrivenSolarPanel
                         float den = densitie / 0.4f;
                         //Scope limited to (0.6,1)
                         reFactor = 1f - (0.4f * den);
-                        status = SP_status_DirectSunlight;
                     }
                     return reFactor;
                 }
