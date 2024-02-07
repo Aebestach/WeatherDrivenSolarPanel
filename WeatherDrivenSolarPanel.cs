@@ -60,6 +60,7 @@ namespace weatherDrivenSolar
                             Double bestFlux = 0;
                             for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
                             {
+                                print(KopernicusStar.Stars.Count);
                                 KopernicusStar star = KopernicusStar.Stars[s];
                                 // Use this star
                                 star.shifter.ApplyPhysics();
@@ -304,7 +305,7 @@ namespace weatherDrivenSolar
                             cachedFlowRate = flowRate;
                             _cachedFlowRate = _flowRate;
                             // Setup next tracking body
-                            if ((bestStar != null && bestStar != trackingBody) && (!_manualTracking))
+                            if ((bestStar != null && bestStar != trackingBody))
                             {
                                 trackingBody = bestStar.sun;
                                 GetTrackingBodyTransforms();
