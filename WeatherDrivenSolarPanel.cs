@@ -49,7 +49,7 @@ namespace weatherDrivenSolarPanel
                 if ((deployState == ModuleDeployablePart.DeployState.EXTENDED))
                 {
                     if (frameTimer >
-                        (30 * Kopernicus.RuntimeUtility.RuntimeUtility.KopernicusConfig.SolarRefreshRate))
+                        (20 * Kopernicus.RuntimeUtility.RuntimeUtility.KopernicusConfig.SolarRefreshRate))
                     {
                         CelestialBody trackingStar = trackingBody;
                         frameTimer = 0;
@@ -380,12 +380,12 @@ namespace weatherDrivenSolarPanel
                 if (layer.Name == "Duna-duststorm-big")
                 {
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    print("densitie\t" + densitie);
-                    if (densitie >= 0.5f)
+                    if (densitie > 0.4f)
                     {
-                        //Scope limited to (-0.4,0.3)
+                        //Scope limited to (-0.4,0.44)
                         reFactor = 1f - densitie * 1.4f;
-                        status = volumetricClouds_dustBlock;
+                        /*Fields["status"].guiActive = true;
+                        status = volumetricClouds_dustBlock;*/
                         if (reFactor < 0f)
                         {
                             return 0f;
@@ -393,11 +393,10 @@ namespace weatherDrivenSolarPanel
                     }
                     else
                     {
-                        float den = densitie / 0.5f;
-                        //Scope limited to (0.7,1)
-                        reFactor = 1f - (0.3f * den);
+                        float den = densitie / 0.4f;
+                        //Scope limited to (0.6,1)
+                        reFactor = 1f - (0.4f * den);
                     }
-                    print("reFactor\t" + reFactor);
                     return reFactor;
                 }
             }
