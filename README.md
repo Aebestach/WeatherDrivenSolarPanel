@@ -1,6 +1,6 @@
 # (WIP) WeatherDrivenSolarPanel
 
-![Imgur](https://imgur.com/2ZKa9yD.jpg)
+![Imgur](https://imgur.com/WoxMQ3K.jpg)
 
 ## Introduce
 
