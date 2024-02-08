@@ -4,7 +4,7 @@
 
 ## Introduce
 
-In the stock version of Kerbal Space Program, the energy output of solar panels is affected by direct sunlight, being blocked by terrain, being blocked by satellites, and being blocked by other parts. With the release of blackrack’s [True Volumetric Clouds](https://www.patreon.com/blackrack/posts), there is now another way to change energy output --- ***weather***. <br>This plugin is designed to be used in conjunction with True Volumetric Clouds. When you encounter rain, snow, dust storms, or volcanic clouds on a planet, you will notice a wonderful change in the values on the panel. Enjoy the game to the fullest!
+In the stock version of Kerbal Space Program, the energy output of solar panels is affected by direct sunlight, being blocked by terrain, being blocked by satellites, and being blocked by other parts. With the release of blackrack’s [True Volumetric Clouds](https://www.patreon.com/blackrack/posts), there is now another way to change energy output --- ***weather***. <br><br>This plugin is designed to be used in conjunction with True Volumetric Clouds. When you encounter rain, snow, dust storms, or volcanic clouds on a planet, you will notice a wonderful change in the values on the panel. Enjoy the game to the fullest!
 
 
 ## Dependencies
