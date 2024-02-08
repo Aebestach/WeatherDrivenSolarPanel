@@ -34,3 +34,4 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 ## Credits
 [@R-T-B](https://github.com/R-T-B)      Part of the Kopernicus code was used.
 <br>[@LGhassen](https://github.com/LGhassen)      Thank him for bringing the commendable volumetric cloud mod to KSP.
+<br> **Thanks to both of them for their help with this plugin!**
