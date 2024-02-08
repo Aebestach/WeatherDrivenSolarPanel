@@ -15,7 +15,11 @@ namespace weatherDrivenSolarPanel
         private static readonly string button_Auto = Localizer.Format("#Kopernicus_UI_AutoTracking");                 // "Auto"
         private static readonly string SelectBody = Localizer.Format("#Kopernicus_UI_SelectBody");                    // "Select Tracking Body"
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
-        private static readonly string WDSP_TVC_dustBlock = Localizer.Format("#WDSP_TVC_dustBlock");                  // "Affected by dust storms"
+        private static readonly string WDSP_TVC_dustAffect = Localizer.Format("#WDSP_TVC_dustAffect");                // "Affected by sandstorm"
+        private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by rain"
+        private static readonly string WDSP_TVC_snowAffect = Localizer.Format("#WDSP_TVC_snowAffect");                // "Affected by snow"
+        private static readonly string WDSP_TVC_volcanoesAffect = Localizer.Format("#WDSP_TVC_volcanoesAffect");      // "Affected by volcanoes"
+
 
         //panel power cached value
         private double _cachedFlowRate = 0;
@@ -368,7 +372,22 @@ namespace weatherDrivenSolarPanel
             base.CalculateTracking();
             if ((layerName == "Duna-duststorm-big") && (statusChangeValue >= 0 && statusChangeValue <= 0.44))
             {
-                this.status = WDSP_TVC_dustBlock;
+                this.status = WDSP_TVC_dustAffect;
+            }
+
+            if ((layerName == "Kerbin-Weather1") && (statusChangeValue >= 0 && statusChangeValue <= 0.52))
+            {
+                this.status = WDSP_TVC_rainAffect;
+            }
+
+            if ((layerName == "Laythe-Weather1") && (statusChangeValue >= 0.1))
+            {
+                this.status = WDSP_TVC_snowAffect;
+            }
+
+            if (layerName == "Laythe-HighAlt-Volcanoes")
+            {
+                this.status = WDSP_TVC_volcanoesAffect;
             }
         }
 
@@ -380,15 +399,15 @@ namespace weatherDrivenSolarPanel
             foreach (var layer in layers)
             {
                 reFactor = 1f;
+                //Duna storm
                 if (layer.Name == "Duna-duststorm-big")
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    print("密度是:\t" + densitie);
-                    if (densitie > 0.4f)
+                    if (densitie > 0.35f)
                     {
-                        //Scope limited to (-0.4,0.44)
-                        reFactor = 1f - densitie * 1.4f;
+                        //Scope limited to (-0.5,0.475)
+                        reFactor = 1f - densitie * 1.5f;
                         if (reFactor < 0f)
                         {
                             return 0f;
@@ -396,9 +415,56 @@ namespace weatherDrivenSolarPanel
                     }
                     else
                     {
-                        float den = densitie / 0.4f;
+                        float den = densitie / 0.35f;
+                        //Scope limited to (0.5,1)
+                        reFactor = 1f - (0.5f * den);
+                    }
+                    return reFactor;
+                }
+
+                //kerbin rain and snow
+                if (layer.Name == "Kerbin-Weather1")
+                {
+                    layerName = layer.Name;
+                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    if (densitie > 0.2f)
+                    {
+                        //Scope limited to (-1.6,0.52)
+                        reFactor = 1f - densitie * 2.6f;
+                        if (reFactor < 0f)
+                        {
+                            return 0f;
+                        }
+                    }
+                    else
+                    {
+                        float den = densitie / 0.2f;
                         //Scope limited to (0.6,1)
                         reFactor = 1f - (0.4f * den);
+                    }
+                    return reFactor;
+                }
+
+                //Laythe snow
+                if (layer.Name == "Laythe-Weather1")
+                {
+                    layerName = layer.Name;
+                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    if (densitie > 0.1f)
+                    {
+                        //Scope limited to (0.1,1)
+                        reFactor = 1f - densitie * 0.9f;
+                    }
+                    return reFactor;
+                }
+
+                if (layer.Name == "Laythe-HighAlt-Volcanoes")
+                {
+                    layerName = layer.Name;
+                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    if (densitie >= 0.1f)
+                    {
+                        reFactor = 0;
                     }
                     return reFactor;
                 }
