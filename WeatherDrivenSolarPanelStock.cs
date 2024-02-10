@@ -48,9 +48,9 @@ namespace weatherDrivenSolarPanel
         {
             base.FixedUpdate();
             //The single star model is updated more frequently.
-            //single-star mode=10;
+            //single-star mode=5;
             //multi-star mode=50;
-            int flagFactor = 10;
+            int flagFactor = 5;
             if (KopernicusStar.UseMultiStarLogic)
             {
                 flagFactor = 50;

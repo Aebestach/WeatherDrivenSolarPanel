@@ -52,9 +52,9 @@ namespace WeatherDrivenSolarPanel
             base.FixedUpdate();
             Fields["flowRate"].guiActive = false;
             //The single star model is updated more frequently.
-            //single-star mode=10;
+            //single-star mode=5;
             //multi-star mode=50;
-            int flagFactor = 10;
+            int flagFactor = 5;
             if (KopernicusStar.UseMultiStarLogic)
             {
                 flagFactor = 50;
@@ -409,7 +409,6 @@ namespace WeatherDrivenSolarPanel
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    print(layerName + "\t密度是\t" + densitie);
                     if (densitie > 0.3f)
                     {
                         //Scope limited to (-0.2,0.64)
