@@ -71,7 +71,7 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WeatherDrivenSolarPanelStock.cs" />
-    <Compile Include="weatherDrivenSolarPanelRO.cs" />
+    <Compile Include="WeatherDrivenSolarPanelRO.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

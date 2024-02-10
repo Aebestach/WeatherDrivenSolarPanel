@@ -6,7 +6,7 @@ using KSP.Localization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-namespace WeatherDrivenSolarPanel
+namespace weatherDrivenSolarPanel
 {
     public class weatherDrivenSolarPanelRO : ModuleDeployableSolarPanel
     {
