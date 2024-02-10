@@ -6,9 +6,9 @@ using KSP.Localization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-namespace weatherDrivenSolarPanel
+namespace WeatherDrivenSolarPanel
 {
-    public class weatherDrivenSolarPanel : ModuleDeployableSolarPanel
+    public class weatherDrivenSolarPanelRO : ModuleDeployableSolarPanel
     {
         //Strings for Localization
         private static readonly string SP_status_DirectSunlight = Localizer.Format("#Kopernicus_UI_DirectSunlight");  // "Direct Sunlight"
@@ -16,6 +16,7 @@ namespace weatherDrivenSolarPanel
         private static readonly string SelectBody = Localizer.Format("#Kopernicus_UI_SelectBody");                    // "Select Tracking Body"
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
         private static readonly string WDSP_TVC_dustAffect = Localizer.Format("#WDSP_TVC_dustAffect");                // "Affected by sandstorm"
+        //private static readonly string WDSP_TVC_stormAffect = Localizer.Format("#WDSP_TVC_stormAffect");              // "Affected by strong dust"
         private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by rain"
         private static readonly string WDSP_TVC_snowAffect = Localizer.Format("#WDSP_TVC_snowAffect");                // "Affected by snow"
         private static readonly string WDSP_TVC_volcanoesAffect = Localizer.Format("#WDSP_TVC_volcanoesAffect");      // "Affected by volcanoes"
@@ -39,6 +40,9 @@ namespace weatherDrivenSolarPanel
         [KSPField(isPersistant = true)]
         private Boolean _manualTracking;
 
+        [KSPField(guiFormat = "N1", guiActive = true, guiName = "#autoLOC_6001421", guiUnits = " Watts")]
+        public float TrueflowRate;
+
         //declare internal float curves
         private static readonly FloatCurve AtmosphericAttenutationAirMassMultiplier = new FloatCurve();
         private static readonly FloatCurve AtmosphericAttenutationSolarAngleMultiplier = new FloatCurve();
@@ -46,7 +50,7 @@ namespace weatherDrivenSolarPanel
         public override void FixedUpdate()
         {
             base.FixedUpdate();
-
+            Fields["flowRate"].guiActive = false;
             //The single star model is updated more frequently.
             //single-star mode=10;
             //multi-star mode=50;
@@ -126,13 +130,12 @@ namespace weatherDrivenSolarPanel
 
                                 //Return value a scale factor
                                 CheckWeatherValue = CheckWeather();
+
                             }
 
                             if ((sunAOA != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
                             {
-                                panelEffectivness = (chargeRate / 24.4f) / 56.37091313591871f * sunAOA * tempMult *
-                                                    atmoAngleMult *
-                                                    atmoDensityMult; //56.blabla is a weird constant we use to turn flux into EC
+                                panelEffectivness = (chargeRate / 24.4f) / 56.37091313591871f * sunAOA * tempMult * atmoAngleMult * atmoDensityMult; //56.blabla is a weird constant we use to turn flux into EC
                             }
 
                             if (starFluxAtHome > 0)
@@ -140,7 +143,6 @@ namespace weatherDrivenSolarPanel
                                 totalFlow += (starFlux * panelEffectivness) /
                                              (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                             }
-
                             totalFlow *= CheckWeatherValue;
                             statusChangeValue = CheckWeatherValue;
 
@@ -154,6 +156,8 @@ namespace weatherDrivenSolarPanel
                         CalculateTracking();
                         vessel.solarFlux = totalFlux;
                         //Add to new output
+
+                        TrueflowRate = (float)totalFlow * 1000;
                         flowRate = (float)totalFlow;
                         _flowRate = totalFlow / chargeRate;
                         resHandler.UpdateModuleResourceOutputs(_flowRate);
@@ -370,12 +374,12 @@ namespace weatherDrivenSolarPanel
         public override void CalculateTracking()
         {
             base.CalculateTracking();
-            if ((layerName == "Duna-duststorm-big") && (statusChangeValue >= 0 && statusChangeValue <= 0.44))
+            if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue >= 0 && statusChangeValue <= 0.64))
             {
                 this.status = WDSP_TVC_dustAffect;
             }
 
-            if ((layerName == "Kerbin-Weather1") && (statusChangeValue >= 0 && statusChangeValue <= 0.52))
+            /*if ((layerName == "TemperateWeather") && (statusChangeValue >= 0 && statusChangeValue <= 0.52))
             {
                 this.status = WDSP_TVC_rainAffect;
             }
@@ -388,7 +392,7 @@ namespace weatherDrivenSolarPanel
             if (layerName == "Laythe-HighAlt-Volcanoes")
             {
                 this.status = WDSP_TVC_volcanoesAffect;
-            }
+            }*/
         }
 
         public float CheckWeather()
@@ -398,82 +402,68 @@ namespace weatherDrivenSolarPanel
             var layers = CloudsManager.GetObjectList();
             foreach (var layer in layers)
             {
+
                 reFactor = 1f;
-                //Duna storm
-                if (layer.Name == "Duna-duststorm-big")
+                //Mars storm
+                if (layer.Name == "Storms-Dust" || layer.Name == "Stable-Dust")
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.35f)
+                    print(layerName + "\t密度是\t" + densitie);
+                    if (densitie > 0.3f)
                     {
-                        //Scope limited to (-0.5,0.475)
-                        reFactor = 1f - densitie * 1.5f;
+                        //Scope limited to (-0.2,0.64)
+                        reFactor = 1f - densitie * 1.2f;
                         if (reFactor < 0f)
                         {
                             return 0f;
                         }
                     }
-                    else
-                    {
-                        float den = densitie / 0.35f;
-                        //Scope limited to (0.5,1)
-                        reFactor = 1f - (0.5f * den);
-                    }
                     return reFactor;
                 }
 
-                //kerbin rain and snow
-                if (layer.Name == "Kerbin-Weather1")
-                {
-                    layerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.2f)
-                    {
-                        //Scope limited to (-1.6,0.52)
-                        reFactor = 1f - densitie * 2.6f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.2f;
-                        //Scope limited to (0.6,1)
-                        reFactor = 1f - (0.4f * den);
-                    }
-                    return reFactor;
-                }
 
-                //Laythe snow
-                if (layer.Name == "Laythe-Weather1")
+                //Titan rain,not yet realised
+                /*if (layer.Name == "MethaneDrizzle")
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    print(layerName + "\t密度是\t" + densitie);
                     if (densitie > 0.1f)
                     {
                         //Scope limited to (0.1,1)
                         reFactor = 1f - densitie * 0.9f;
                     }
                     return reFactor;
-                }
+                }*/
 
-                if (layer.Name == "Laythe-HighAlt-Volcanoes")
+                //Titan PolarHood,not yet realised
+                /*if (layer.Name == "PolarHood")
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    print(layerName + "\t密度是\t" + densitie);
                     if (densitie >= 0.1f)
                     {
                         reFactor = 0;
                     }
                     return reFactor;
-                }
+                }*/
+
+                //Titan TholinHaze,not yet realised
+                /*if (layer.Name == "TholinHaze")
+                {
+                    layerName = layer.Name;
+                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
+                    print(layerName + "\t密度是\t" + densitie);
+                    if (densitie >= 0.1f)
+                    {
+                        reFactor = 0;
+                    }
+                    return reFactor;
+                }*/
             }
             return 1f;
         }
     }
 }
-
-
-
-
