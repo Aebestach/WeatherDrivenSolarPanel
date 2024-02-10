@@ -1,6 +1,7 @@
 # (WIP) WeatherDrivenSolarPanel
+[English](https://github.com/Aebestach/WeatherDrivenSolarPanel/blob/master/README.md) | [简体中文](https://www.bilibili.com/read/cv31075491/)
 
-![Imgur](https://imgur.com/2ZKa9yD.jpg)
+![Imgur](https://imgur.com/WoxMQ3K.jpg)
 
 ## Introduce
 
