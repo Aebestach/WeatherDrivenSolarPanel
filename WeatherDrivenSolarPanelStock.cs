@@ -17,7 +17,7 @@ namespace weatherDrivenSolarPanel
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
         private static readonly string WDSP_TVC_dustAffect = Localizer.Format("#WDSP_TVC_dustAffect");                // "Affected by dust"
         private static readonly string WDSP_TVC_stormAffect = Localizer.Format("#WDSP_TVC_stormAffect");              // "Affected by strong dust"
-        private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by rain"
+        private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by precipitation"
         private static readonly string WDSP_TVC_snowAffect = Localizer.Format("#WDSP_TVC_snowAffect");                // "Affected by snow"
         private static readonly string WDSP_TVC_volcanoesAffect = Localizer.Format("#WDSP_TVC_volcanoesAffect");      // "Affected by volcanoes"
 
@@ -379,7 +379,7 @@ namespace weatherDrivenSolarPanel
                 this.status = WDSP_TVC_dustAffect;
             }
 
-            if ((layerName == "Kerbin-Weather1") && (statusChangeValue >= 0 && statusChangeValue <= 0.52))
+            if ((layerName == "Kerbin-Weather2" || layerName == "Kerbin-Weather1") && (statusChangeValue >= 0 && statusChangeValue <= 0.22))
             {
                 this.status = WDSP_TVC_rainAffect;
             }
@@ -427,13 +427,13 @@ namespace weatherDrivenSolarPanel
                 }
 
                 //kerbin rain and snow
-                if (layer.Name == "Kerbin-Weather1")
+                if (layer.Name == "Kerbin-Weather2" || layer.Name == "Kerbin-Weather1")
                 {
                     layerName = layer.Name;
                     densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.2f)
+                    if (densitie > 0.3f)
                     {
-                        //Scope limited to (-1.6,0.52)
+                        //Scope limited to (-1.6,0.22)
                         reFactor = 1f - densitie * 2.6f;
                         if (reFactor < 0f)
                         {
@@ -442,7 +442,7 @@ namespace weatherDrivenSolarPanel
                     }
                     else
                     {
-                        float den = densitie / 0.2f;
+                        float den = densitie / 0.3f;
                         //Scope limited to (0.6,1)
                         reFactor = 1f - (0.4f * den);
                     }
