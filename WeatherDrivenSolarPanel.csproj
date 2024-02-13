@@ -67,8 +67,13 @@
       <HintPath>..\..\..\..\Games\KSP\1.12.5 English\KSP_x64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Utils">
+      <HintPath>..\..\..\..\Games\KSP\1.12.5 Stock\GameData\EnvironmentalVisualEnhancements\Plugins\Utils.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="NewWeatherDriven.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WeatherDrivenSolarPanelStock.cs" />
     <Compile Include="WeatherDrivenSolarPanelRO.cs" />
