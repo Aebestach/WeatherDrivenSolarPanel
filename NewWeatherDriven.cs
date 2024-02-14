@@ -1,6 +1,7 @@
 ﻿using Atmosphere;
 using UnityEngine;
 using System;
+using Utils;
 
 namespace EVETestExample
 {
@@ -9,7 +10,7 @@ namespace EVETestExample
     {
         public void Update()
         {
-            int stepCount = 1000;
+            int stepCount = 10000;
             float totalDensity = 0f;
 
 
@@ -27,13 +28,11 @@ namespace EVETestExample
             var layers = CloudsManager.GetObjectList();
 
             string body = FlightGlobals.currentMainBody.bodyName;
-            scaledTransform = Utils.Tools.GetScaledTransform(body);
+            scaledTransform = Tools.GetScaledTransform(body);
 
             foreach (var layer in layers)
             {
-                if (layer.Name == "Kerbin-clouds1" || layer.Name == "Kerbin-clouds2" || layer.Name == "Kerbin-Weather1"
-                    || layer.Name == "Kerbin-Weather2" || layer.Name == "Duna-dust-scattered" || layer.Name == "Duna-duststorm-big"
-                    || layer.Name == "Eve-clouds1" || layer.Name == "Eve-clouds2")
+                if (layer.Name != "Kerbin-Snow-Particles-1" && layer.Name != "Kerbin-Snow-Particles-2")
                 {
                     cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
 
