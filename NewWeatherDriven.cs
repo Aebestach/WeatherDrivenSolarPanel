@@ -9,7 +9,7 @@ namespace EVETestExample
     {
         public void Update()
         {
-            int stepCount = 25;
+            int stepCount = 1000;
             float totalDensity = 0f;
 
 
@@ -21,8 +21,7 @@ namespace EVETestExample
             Vessel vessel = FlightGlobals.ActiveVessel;
             CelestialBody sun = FlightGlobals.Bodies.Find(b => b.name == "Sun");
             Vector3d toSun = sun.position - vessel.GetWorldPos3D();
-            Vector3d localToSun = vessel.transform.InverseTransformDirection(toSun);
-            lightDirection = localToSun.normalized;
+            lightDirection = toSun.normalized;
 
 
             var layers = CloudsManager.GetObjectList();
@@ -32,7 +31,9 @@ namespace EVETestExample
 
             foreach (var layer in layers)
             {
-                if (layer.Name == "Kerbin-Weather1" || layer.Name == "Kerbin-Weather2")
+                if (layer.Name == "Kerbin-clouds1" || layer.Name == "Kerbin-clouds2" || layer.Name == "Kerbin-Weather1"
+                    || layer.Name == "Kerbin-Weather2" || layer.Name == "Duna-dust-scattered" || layer.Name == "Duna-duststorm-big"
+                    || layer.Name == "Eve-clouds1" || layer.Name == "Eve-clouds2")
                 {
                     cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
 
@@ -73,7 +74,7 @@ namespace EVETestExample
             }
 
             float lightTransmittance = (float)Math.Exp(-totalDensity);
-            print("lightTransmittance" + lightTransmittance);
+            print("lightTransmittance\t" + lightTransmittance);
         }
 
         private double IntersectSphere(Vector3d origin, Vector3d d, Vector3d sphereCenter, double r)
