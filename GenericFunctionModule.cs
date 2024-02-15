@@ -112,6 +112,7 @@ namespace WDSP_GenericFunctionModule
         {
             layerName = null;
             int stepCount = 500;
+            //int stepCount = 100;
             float totalDensity = 0f;
             bool RSSflag;
 
