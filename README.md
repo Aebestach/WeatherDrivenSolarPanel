@@ -16,15 +16,12 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 
 ## Installation
 - The installation process is the same as other mods. Just put the WeatherDrivenSolarPanel folder from GameData into the GameData in the game root directory. 
-
+- Since ray tracing is now used to calculate EC, for some computers with lower CPU performance, you will need to put the `Extra\LowPerformancePlugin\WeatherDrivenSolarPanel.dll` into the `GameData\WeatherDrivenSolarPanel\Plugin` to overwrite the original *WeatherDrivenSolarPanel.dll*. 
+<br>(The default is for high performance computer users. In fact you can try to use the high performance *.dll* and if there is noticeable lag then use the low performance *.dll*).
 
 ## Preview Image & Video
 ![Imgur](https://imgur.com/WsDzsv7.jpg)
 [YouTube](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2) 
-
-## To-Do List
-- Add support for cloudy and overcast skies.
-- Although it has now been realised that solar panels change their energy output in some weather conditions, this current implementation is not very perfect and other computational models will be considered in the future.
 
 ## Warning
 - Compatibility with kerbalism remains to be seen.
