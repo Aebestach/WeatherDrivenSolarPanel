@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
-using Atmosphere;
 using System;
 using Kopernicus.Components;
 using KSP.Localization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using WDSP_GenericFunctionModule;
+
 
 namespace weatherDrivenSolarPanel
 {
@@ -15,8 +16,9 @@ namespace weatherDrivenSolarPanel
         private static readonly string button_Auto = Localizer.Format("#Kopernicus_UI_AutoTracking");                 // "Auto"
         private static readonly string SelectBody = Localizer.Format("#Kopernicus_UI_SelectBody");                    // "Select Tracking Body"
         private static readonly string SelectBody_Msg = Localizer.Format("#Kopernicus_UI_SelectBody_Msg");            // "Please select the Body you want to track with this Solar Panel."
-        private static readonly string WDSP_TVC_dustAffect = Localizer.Format("#WDSP_TVC_dustAffect");                // "Affected by dust"
-        private static readonly string WDSP_TVC_stormAffect = Localizer.Format("#WDSP_TVC_stormAffect");              // "Affected by strong dust"
+
+        private static readonly string WDSP_TVC_cloudyAffect = Localizer.Format("#WDSP_TVC_cloudyAffect");            // "Affected by cloud cover"
+        private static readonly string WDSP_TVC_dustStormAffect = Localizer.Format("#WDSP_TVC_dustStormAffect");      // "Affected by dust"
         private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by precipitation"
         private static readonly string WDSP_TVC_snowAffect = Localizer.Format("#WDSP_TVC_snowAffect");                // "Affected by snow"
         private static readonly string WDSP_TVC_volcanoesAffect = Localizer.Format("#WDSP_TVC_volcanoesAffect");      // "Affected by volcanoes"
@@ -31,7 +33,7 @@ namespace weatherDrivenSolarPanel
 
         //Change the value of status of the solar panel.
         private float statusChangeValue = 1;
-        string layerName;
+        private string layerName;
 
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = "#Kopernicus_UI_TrackingBody", isPersistant = true)]
         [SuppressMessage("ReSharper", "NotAccessedField.Global")]
@@ -114,8 +116,8 @@ namespace weatherDrivenSolarPanel
                             float atmoDensityMult = 1;
                             float atmoAngleMult = 1;
                             float tempMult = 1;
-                            float CheckWeatherValue = 1f;
-                            if (this.vessel.atmDensity > 0)
+                            float WeatherImpactFactor = 1f;
+                            if (this.vessel.atmDensity > 0 && sunAOA > 0)
                             {
                                 float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.sun.position);
                                 Double gravAccelParameter = (vessel.mainBody.gravParameter / Math.Pow(vessel.mainBody.Radius + FlightGlobals.ship_altitude, 2));
@@ -125,7 +127,9 @@ namespace weatherDrivenSolarPanel
                                 atmoAngleMult = AtmosphericAttenutationSolarAngleMultiplier.Evaluate(sunZenithAngleDeg);
 
                                 //Return value a scale factor
-                                CheckWeatherValue = CheckWeather();
+                                //WeatherImpactFactor = GenericFunctionModule.CheckWeather();
+                                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackingStar, out string NlayerName);
+                                layerName = NlayerName;
                             }
 
                             if ((sunAOA != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
@@ -140,8 +144,9 @@ namespace weatherDrivenSolarPanel
                                 totalFlow += (starFlux * panelEffectivness) /
                                              (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                             }
-                            totalFlow *= CheckWeatherValue;
-                            statusChangeValue = CheckWeatherValue;
+
+                            totalFlow *= WeatherImpactFactor;
+                            statusChangeValue = WeatherImpactFactor;
 
                             // Restore Tracking Speed
                             trackingSpeed = oldTrackingSpeed;
@@ -370,111 +375,35 @@ namespace weatherDrivenSolarPanel
         public override void CalculateTracking()
         {
             base.CalculateTracking();
-            if ((layerName == "Duna-duststorm-big") && (statusChangeValue >= 0 && statusChangeValue <= 0.475))
+            if ((layerName == "Kerbin-clouds1" || layerName == "Kerbin-clouds2" || layerName == "Eve-clouds1"
+                || layerName == "Eve-clouds2" || layerName == "Jool-clouds-underworld" || layerName == "Jool-clouds0"
+                || layerName == "Jool-clouds1" || layerName == "Jool-clouds2" || layerName == "Laythe-clouds1"
+                || layerName == "Duna-rare-cirrus" || layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus"
+                || layerName == "Cirrus") && (statusChangeValue < 0.85f))
             {
-                this.status = WDSP_TVC_stormAffect;
-            }
-            else if ((layerName == "Duna-duststorm-big") && (statusChangeValue >= 0.5 && statusChangeValue <= 1))
-            {
-                this.status = WDSP_TVC_dustAffect;
+                this.status = WDSP_TVC_cloudyAffect;
             }
 
-            if ((layerName == "Kerbin-Weather2" || layerName == "Kerbin-Weather1") && (statusChangeValue >= 0 && statusChangeValue <= 0.22))
+            if ((layerName == "Kerbin-Weather1" || layerName == "Kerbin-Weather2" || layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_rainAffect;
             }
 
-            if ((layerName == "Laythe-Weather1") && (statusChangeValue >= 0.1))
+            if ((layerName == "Duna-duststorm-big" || layerName == "Duna-dust-scattered" || layerName == "Storms-Dust"
+                || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
+            {
+                this.status = WDSP_TVC_dustStormAffect;
+            }
+
+            if ((layerName == "Laythe-Weather1") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_snowAffect;
             }
 
-            if (layerName == "Laythe-HighAlt-Volcanoes")
+            if ((layerName == "Laythe-HighAlt-Volcanoes") && (statusChangeValue < 0.95f))
             {
                 this.status = WDSP_TVC_volcanoesAffect;
             }
-        }
-
-        public float CheckWeather()
-        {
-            float densitie;
-            float reFactor;
-            var layers = CloudsManager.GetObjectList();
-            foreach (var layer in layers)
-            {
-                reFactor = 1f;
-                //Duna storm
-                if (layer.Name == "Duna-duststorm-big")
-                {
-                    layerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.35f)
-                    {
-                        //Scope limited to (-0.5,0.475)
-                        reFactor = 1f - densitie * 1.5f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.35f;
-                        //Scope limited to (0.5,1)
-                        reFactor = 1f - (0.5f * den);
-                    }
-                    return reFactor;
-                }
-
-                //kerbin rain and snow
-                if (layer.Name == "Kerbin-Weather2" || layer.Name == "Kerbin-Weather1")
-                {
-                    layerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.3f)
-                    {
-                        //Scope limited to (-1.6,0.22)
-                        reFactor = 1f - densitie * 2.6f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.3f;
-                        //Scope limited to (0.6,1)
-                        reFactor = 1f - (0.4f * den);
-                    }
-                    return reFactor;
-                }
-
-                //Laythe snow
-                if (layer.Name == "Laythe-Weather1")
-                {
-                    layerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.1f)
-                    {
-                        //Scope limited to (0.1,1)
-                        reFactor = 1f - densitie * 0.9f;
-                    }
-                    return reFactor;
-                }
-
-                ////Laythe volcanoes
-                if (layer.Name == "Laythe-HighAlt-Volcanoes")
-                {
-                    layerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie >= 0.1f)
-                    {
-                        reFactor = 0;
-                    }
-                    return reFactor;
-                }
-            }
-            return 1f;
         }
     }
 }
