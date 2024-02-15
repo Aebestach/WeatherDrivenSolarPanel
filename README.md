@@ -28,6 +28,7 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 
 ## Others
 - Due to the inscrutable calculation method of the stock version of EC resources, I am directly using the calculation method under the multi-star mode of Kopernicus here, which is currently the best method I can take.
+- Adaptation of RSS-Reborn+RO and RSS-Origin+RO has been completed.
 
 ## Credits
 [@R-T-B](https://github.com/R-T-B)      Part of the Kopernicus code was used.
