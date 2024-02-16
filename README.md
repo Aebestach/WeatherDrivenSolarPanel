@@ -24,11 +24,14 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 [YouTube](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2) 
 
 ## Warning
-- Compatibility with kerbalism remains to be seen.
+- Unknown at this time
 
-## Others
+## Attention 
 - Due to the inscrutable calculation method of the stock version of EC resources, I am directly using the calculation method under the multi-star mode of Kopernicus here, which is currently the best method I can take.
 - Adaptation of RSS-Reborn+RO and RSS-Origin+RO has been completed.
+- Adaptation kerbalism, but note that this abandons the EC calculations using kerbalism (which doesn't seem to have much of an impact either).
+In fact it's more recommended to use [FuseboxContinued](https://forum.kerbalspaceprogram.com/topic/157896-112x-fusebox-continued-electric-charge-tracker-and-build-helper/), and I've mentioned in the [kerbalism issue](https://github.com/Kerbalism/Kerbalism/issues/886) that the EC calculation in question is wrong.
+- The four curved solar panels in the NFSolar are not compatible with this plug-in.
 
 ## Credits
 [@R-T-B](https://github.com/R-T-B)      Part of the Kopernicus code was used.
