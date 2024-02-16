@@ -32,7 +32,7 @@ namespace weatherDrivenSolarPanel
         private int frameTimer = 0;
 
         //Change the value of status of the solar panel.
-        private float statusChangeValue = 1;
+        private float statusChangeValue = 1f;
         private string layerName;
 
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = "#Kopernicus_UI_TrackingBody", isPersistant = true)]
@@ -383,24 +383,20 @@ namespace weatherDrivenSolarPanel
             {
                 this.status = WDSP_TVC_cloudyAffect;
             }
-
-            if ((layerName == "Kerbin-Weather1" || layerName == "Kerbin-Weather2" || layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
+            else if ((layerName == "Kerbin-Weather1" || layerName == "Kerbin-Weather2" || layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_rainAffect;
             }
-
-            if ((layerName == "Duna-duststorm-big" || layerName == "Duna-dust-scattered" || layerName == "Storms-Dust"
+            else if ((layerName == "Duna-duststorm-big" || layerName == "Duna-dust-scattered" || layerName == "Storms-Dust"
                 || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_dustStormAffect;
             }
-
-            if ((layerName == "Laythe-Weather1") && (statusChangeValue < 0.9f))
+            else if ((layerName == "Laythe-Weather1") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_snowAffect;
             }
-
-            if ((layerName == "Laythe-HighAlt-Volcanoes") && (statusChangeValue < 0.95f))
+            else if ((layerName == "Laythe-HighAlt-Volcanoes") && (statusChangeValue < 0.95f))
             {
                 this.status = WDSP_TVC_volcanoesAffect;
             }

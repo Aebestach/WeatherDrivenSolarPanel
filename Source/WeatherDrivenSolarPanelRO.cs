@@ -29,8 +29,8 @@ namespace weatherDrivenSolarPanel
         private int frameTimer = 0;
 
         //Change the value of status of the solar panel.
-        private float statusChangeValue = 1;
-        string layerName;
+        private float statusChangeValue = 1f;
+        private string layerName;
 
         [KSPField(guiActive = false, guiActiveEditor = false, guiName = "#Kopernicus_UI_TrackingBody", isPersistant = true)]
         [SuppressMessage("ReSharper", "NotAccessedField.Global")]
@@ -384,13 +384,11 @@ namespace weatherDrivenSolarPanel
             {
                 this.status = WDSP_TVC_cloudyAffect;
             }
-
-            if ((layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
+            else if ((layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_rainAffect;
             }
-
-            if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
+            else if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_dustStormAffect;
             }
