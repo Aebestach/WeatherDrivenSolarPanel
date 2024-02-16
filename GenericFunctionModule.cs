@@ -176,7 +176,6 @@ namespace WDSP_GenericFunctionModule
             }
 
             float lightTransmittance = (float)Math.Exp(-totalDensity);
-            Debug.Log("lightTransmittance\t" + lightTransmittance);
 
             float middleValue = 1f;
             if (layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus"
