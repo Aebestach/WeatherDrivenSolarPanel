@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\AebestachFiles\\Code\\C#\\WeatherDrivenSolarPanel\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{8D27838D-25CE-4414-92D4-EA2ADA791063}|WeatherDrivenSolarPanel.csproj|c:\\aebestachfiles\\code\\c#\\weatherdrivensolarpanel\\weatherdrivensolarpanelstock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{8D27838D-25CE-4414-92D4-EA2ADA791063}|WeatherDrivenSolarPanel.csproj|solutionrelative:weatherdrivensolarpanelstock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\AebestachFiles\\Code\\C#\\WeatherDrivenSolarPanel\\WeatherDrivenSolarPanelStock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:WeatherDrivenSolarPanelStock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{8D27838D-25CE-4414-92D4-EA2ADA791063}|WeatherDrivenSolarPanel.csproj|c:\\aebestachfiles\\code\\c#\\weatherdrivensolarpanel\\genericfunctionmodule.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{8D27838D-25CE-4414-92D4-EA2ADA791063}|WeatherDrivenSolarPanel.csproj|solutionrelative:genericfunctionmodule.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\AebestachFiles\\Code\\C#\\WeatherDrivenSolarPanel\\GenericFunctionModule.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:GenericFunctionModule.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -38,7 +38,7 @@
             },
             {
               "$type": "Bookmark",
-              "Name": "ST:0:0:{1c64b9c2-e352-428e-a56d-0ace190b99a6}"
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             },
             {
               "$type": "Document",
@@ -48,10 +48,8 @@
               "RelativeDocumentMoniker": "WeatherDrivenSolarPanelStock.cs",
               "ToolTip": "C:\\AebestachFiles\\Code\\C#\\WeatherDrivenSolarPanel\\WeatherDrivenSolarPanelStock.cs",
               "RelativeToolTip": "WeatherDrivenSolarPanelStock.cs",
-              "ViewState": "AQIAADcAAAAAAAAAAAA8wEcAAAA6AAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-02-16T12:24:08.285Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-02-16T12:24:08.285Z"
             },
             {
               "$type": "Document",
@@ -63,8 +61,11 @@
               "RelativeToolTip": "GenericFunctionModule.cs",
               "ViewState": "AQIAAIgAAAAAAAAAAAA8wHIAAAAOAAAA",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2024-02-16T10:53:36.573Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-02-16T10:53:36.573Z"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c64b9c2-e352-428e-a56d-0ace190b99a6}"
             }
           ]
         }
