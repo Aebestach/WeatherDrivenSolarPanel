@@ -68,7 +68,6 @@ namespace weatherDrivenSolarPanel
                     if (frameTimer >
                         (flagFactor * Kopernicus.RuntimeUtility.RuntimeUtility.KopernicusConfig.SolarRefreshRate))
                     {
-                        statusChangeValue = 1;
                         CelestialBody trackingStar = trackingBody;
                         frameTimer = 0;
                         KopernicusStar bestStar = KopernicusStar.CelestialBodies[trackingStar];
@@ -117,7 +116,7 @@ namespace weatherDrivenSolarPanel
                             float atmoAngleMult = 1;
                             float tempMult = 1;
                             float WeatherImpactFactor = 1f;
-                            if (this.vessel.atmDensity > 0 && sunAOA > 0)
+                            if (this.vessel.atmDensity > 0)
                             {
                                 float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.sun.position);
                                 Double gravAccelParameter = (vessel.mainBody.gravParameter / Math.Pow(vessel.mainBody.Radius + FlightGlobals.ship_altitude, 2));
@@ -187,7 +186,6 @@ namespace weatherDrivenSolarPanel
                         //this ensures the "blocked" GUI option is set right, if we're exposed to you we're not blocked
                         vessel.directSunlight = true;
                     }
-
                     // Restore The Current Star
                     KopernicusStar.Current.shifter.ApplyPhysics();
                 }
@@ -381,24 +379,24 @@ namespace weatherDrivenSolarPanel
                 || layerName == "Duna-rare-cirrus" || layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus"
                 || layerName == "Cirrus") && (statusChangeValue < 0.85f))
             {
-                this.status = WDSP_TVC_cloudyAffect;
+                status = WDSP_TVC_cloudyAffect;
             }
             else if ((layerName == "Kerbin-Weather1" || layerName == "Kerbin-Weather2" || layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
             {
-                this.status = WDSP_TVC_rainAffect;
+                status = WDSP_TVC_rainAffect;
             }
             else if ((layerName == "Duna-duststorm-big" || layerName == "Duna-dust-scattered" || layerName == "Storms-Dust"
                 || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
             {
-                this.status = WDSP_TVC_dustStormAffect;
+                status = WDSP_TVC_dustStormAffect;
             }
             else if ((layerName == "Laythe-Weather1") && (statusChangeValue < 0.9f))
             {
-                this.status = WDSP_TVC_snowAffect;
+                status = WDSP_TVC_snowAffect;
             }
             else if ((layerName == "Laythe-HighAlt-Volcanoes") && (statusChangeValue < 0.95f))
             {
-                this.status = WDSP_TVC_volcanoesAffect;
+                status = WDSP_TVC_volcanoesAffect;
             }
         }
     }

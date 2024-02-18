@@ -48,7 +48,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Kopernicus">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
