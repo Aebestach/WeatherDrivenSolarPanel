@@ -24,12 +24,10 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 [YouTube](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2) 
 
 ## Warning
-- Unknown at this time
+- Currently not compatible with kerbalism. If kerbalism is installed there will be a problem with EC's of unloaded vessels not generating power.
 
 ## Compatibility
 - Adaptation of RSS-Reborn+RO and RSS-Origin+RO has been completed.
-- Adaptation kerbalism, but note that this abandons the EC calculations using kerbalism (which doesn't seem to have much of an impact either).
-In fact it's more recommended to use [FuseboxContinued](https://forum.kerbalspaceprogram.com/topic/157896-112x-fusebox-continued-electric-charge-tracker-and-build-helper/), and I've mentioned in the [kerbalism issue](https://github.com/Kerbalism/Kerbalism/issues/886) that the EC calculation in question is wrong.
 - The four curved solar panels in the NFSolar are not compatible with this plug-in.
 - No other incompatibilities have been received yet.
 
