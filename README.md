@@ -27,7 +27,6 @@ In the stock version of Kerbal Space Program, the energy output of solar panels 
 - With kerbalism installed, it can be encountered that the solar panels will not generate power when the vessels is unloaded.
 
 ## Compatibility
-- Due to the inscrutable calculation method of the stock version of EC resources, I am directly using the calculation method under the multi-star mode of Kopernicus here, which is currently the best method I can take.
 - Adaptation of RSS-Reborn+RO and RSS-Origin+RO has been completed.
 - The four curved solar panels in the NFSolar are not compatible with this plug-in.
 
