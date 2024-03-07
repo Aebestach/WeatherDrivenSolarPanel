@@ -373,7 +373,7 @@ namespace weatherDrivenSolarPanel
         public override void CalculateTracking()
         {
             base.CalculateTracking();
-            if ((layerName == "Kerbin-clouds1" || layerName == "Kerbin-clouds2" || layerName == "Eve-clouds1"
+            /*if ((layerName == "Kerbin-clouds1" || layerName == "Kerbin-clouds2" || layerName == "Eve-clouds1"
                 || layerName == "Eve-clouds2" || layerName == "Jool-clouds-underworld" || layerName == "Jool-clouds0"
                 || layerName == "Jool-clouds1" || layerName == "Jool-clouds2" || layerName == "Laythe-clouds1"
                 || layerName == "Duna-rare-cirrus" || layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus"
@@ -397,6 +397,59 @@ namespace weatherDrivenSolarPanel
             else if ((layerName == "Laythe-HighAlt-Volcanoes") && (statusChangeValue < 0.95f))
             {
                 status = WDSP_TVC_volcanoesAffect;
+            }*/
+            switch (layerName)
+            {
+                case "Kerbin-clouds1":
+                case "Kerbin-clouds2":
+                case "Eve-clouds1":
+                case "Eve-clouds2":
+                case "Jool-clouds-underworld":
+                case "Jool-clouds0":
+                case "Jool-clouds1":
+                case "Jool-clouds2":
+                case "Laythe-clouds1":
+                case "Duna-rare-cirrus":
+                case "TemperateCumulus":
+                case "TemperateAltoStratus":
+                case "Cirrus":
+                    if (statusChangeValue < 0.85f)
+                    {
+                        status = WDSP_TVC_cloudyAffect;
+                    }
+                    break;
+                case "Kerbin-Weather1":
+                case "Kerbin-Weather2":
+                case "TemperateWeather":
+                    if (statusChangeValue < 0.9f)
+                    {
+                        status = WDSP_TVC_rainAffect;
+                    }
+                    break;
+                case "Duna-duststorm-big":
+                case "Duna-dust-scattered":
+                case "Storms-Dust":
+                case "Stable-Dust":
+                    if (statusChangeValue < 0.9f)
+                    {
+                        status = WDSP_TVC_dustStormAffect;
+                    }
+                    break;
+                case "Laythe-Weather1":
+                    if (statusChangeValue < 0.9f)
+                    {
+                        status = WDSP_TVC_snowAffect;
+                    }
+                    break;
+                case "Laythe-HighAlt-Volcanoes":
+                    if (statusChangeValue < 0.95f)
+                    {
+                        status = WDSP_TVC_volcanoesAffect;
+                    }
+                    break;
+                default:
+                    // Default case if none of the above conditions are met
+                    break;
             }
         }
     }

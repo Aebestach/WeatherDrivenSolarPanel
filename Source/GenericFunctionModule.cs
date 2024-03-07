@@ -178,14 +178,19 @@ namespace WDSP_GenericFunctionModule
             float lightTransmittance = (float)Math.Exp(-totalDensity);
 
             float middleValue = 1f;
-            if (layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus"
-                || layerName == "Cirrus" || layerName == "TemperateWeather" || layerName == "Storms-Dust" || layerName == "Stable-Dust")
+            switch (layerName)
             {
-                RSSflag = true;
-            }
-            else
-            {
-                RSSflag = false;
+                case "TemperateCumulus":
+                case "TemperateAltoStratus":
+                case "Cirrus":
+                case "TemperateWeather":
+                case "Storms-Dust":
+                case "Stable-Dust":
+                    RSSflag = true;
+                    break;
+                default:
+                    RSSflag = false;
+                    break;
             }
 
             if (RSSflag == true)

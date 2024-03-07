@@ -379,7 +379,7 @@ namespace weatherDrivenSolarPanel
                 this.status = WDSP_TVC_dustStormAffect;
             }*/
 
-            if ((layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus" || layerName == "Cirrus") && (statusChangeValue < 0.85f))
+            /*if ((layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus" || layerName == "Cirrus") && (statusChangeValue < 0.85f))
             {
                 this.status = WDSP_TVC_cloudyAffect;
             }
@@ -390,7 +390,36 @@ namespace weatherDrivenSolarPanel
             else if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
             {
                 this.status = WDSP_TVC_dustStormAffect;
+            }*/
+
+            switch (layerName)
+            {
+                case "TemperateCumulus":
+                case "TemperateAltoStratus":
+                case "Cirrus":
+                    if (statusChangeValue < 0.85f)
+                    {
+                        this.status = WDSP_TVC_cloudyAffect;
+                    }
+                    break;
+                case "TemperateWeather":
+                    if (statusChangeValue < 0.9f)
+                    {
+                        this.status = WDSP_TVC_rainAffect;
+                    }
+                    break;
+                case "Storms-Dust":
+                case "Stable-Dust":
+                    if (statusChangeValue < 0.9f)
+                    {
+                        this.status = WDSP_TVC_dustStormAffect;
+                    }
+                    break;
+                default:
+                    // Default case if none of the above conditions are met
+                    break;
             }
+
         }
     }
 }
