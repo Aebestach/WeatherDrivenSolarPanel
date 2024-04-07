@@ -18,7 +18,7 @@ namespace weatherDrivenSolarPanel
 
         private static readonly string WDSP_TVC_cloudyAffect = Localizer.Format("#WDSP_TVC_cloudyAffect");            // "Affected by cloud cover"
         private static readonly string WDSP_TVC_dustStormAffect = Localizer.Format("#WDSP_TVC_dustStormAffect");      // "Affected by dust"
-        private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by precipitation"
+        private static readonly string WDSP_TVC_rainAffect = Localizer.Format("#WDSP_TVC_rainAffect");                // "Affected by precipitation clouds"
 
 
         //panel power cached value
@@ -374,52 +374,36 @@ namespace weatherDrivenSolarPanel
         public override void CalculateTracking()
         {
             base.CalculateTracking();
-            /*if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue >= 0 && statusChangeValue <= 0.64))
+            if (sunAOA > 0)
             {
-                this.status = WDSP_TVC_dustStormAffect;
-            }*/
-
-            /*if ((layerName == "TemperateCumulus" || layerName == "TemperateAltoStratus" || layerName == "Cirrus") && (statusChangeValue < 0.85f))
-            {
-                this.status = WDSP_TVC_cloudyAffect;
+                switch (layerName)
+                {
+                    case "TemperateCumulus":
+                    case "TemperateAltoStratus":
+                    case "Cirrus":
+                        if (statusChangeValue < 0.9f)
+                        {
+                            this.status = WDSP_TVC_cloudyAffect;
+                        }
+                        break;
+                    case "TemperateWeather":
+                        if (statusChangeValue < 0.85f)
+                        {
+                            this.status = WDSP_TVC_rainAffect;
+                        }
+                        break;
+                    case "Storms-Dust":
+                    case "Stable-Dust":
+                        if (statusChangeValue < 0.9f)
+                        {
+                            this.status = WDSP_TVC_dustStormAffect;
+                        }
+                        break;
+                    default:
+                        // Default case if none of the above conditions are met
+                        break;
+                }
             }
-            else if ((layerName == "TemperateWeather") && (statusChangeValue < 0.9f))
-            {
-                this.status = WDSP_TVC_rainAffect;
-            }
-            else if ((layerName == "Storms-Dust" || layerName == "Stable-Dust") && (statusChangeValue < 0.9f))
-            {
-                this.status = WDSP_TVC_dustStormAffect;
-            }*/
-
-            switch (layerName)
-            {
-                case "TemperateCumulus":
-                case "TemperateAltoStratus":
-                case "Cirrus":
-                    if (statusChangeValue < 0.85f)
-                    {
-                        this.status = WDSP_TVC_cloudyAffect;
-                    }
-                    break;
-                case "TemperateWeather":
-                    if (statusChangeValue < 0.9f)
-                    {
-                        this.status = WDSP_TVC_rainAffect;
-                    }
-                    break;
-                case "Storms-Dust":
-                case "Stable-Dust":
-                    if (statusChangeValue < 0.9f)
-                    {
-                        this.status = WDSP_TVC_dustStormAffect;
-                    }
-                    break;
-                default:
-                    // Default case if none of the above conditions are met
-                    break;
-            }
-
         }
     }
 }

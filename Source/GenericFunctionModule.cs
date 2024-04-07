@@ -7,112 +7,11 @@ namespace WDSP_GenericFunctionModule
 {
     public class GenericFunctionModule
     {
-        /*public static float CheckWeather(out string NlayerName)
-        {
-            float densitie;
-            float reFactor;
-            NlayerName = null;
-            var layers = CloudsManager.GetObjectList();
-            foreach (var layer in layers)
-            {
-                reFactor = 1f;
-                //Duna storm
-                if (layer.Name == "Duna-duststorm-big")
-                {
-                    NlayerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.35f)
-                    {
-                        //Scope limited to (-0.5,0.475)
-                        reFactor = 1f - densitie * 1.5f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.35f;
-                        //Scope limited to (0.5,1)
-                        reFactor = 1f - (0.5f * den);
-                    }
-                    return reFactor;
-                }
-
-                //kerbin rain and snow
-                if (layer.Name == "Kerbin-Weather2" || layer.Name == "Kerbin-Weather1")
-                {
-                    NlayerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.3f)
-                    {
-                        //Scope limited to (-1.6,0.22)
-                        reFactor = 1f - densitie * 2.6f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    else
-                    {
-                        float den = densitie / 0.3f;
-                        //Scope limited to (0.6,1)
-                        reFactor = 1f - (0.4f * den);
-                    }
-                    return reFactor;
-                }
-
-                //Laythe snow
-                if (layer.Name == "Laythe-Weather1")
-                {
-                    NlayerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.1f)
-                    {
-                        //Scope limited to (0.1,1)
-                        reFactor = 1f - densitie * 0.9f;
-                    }
-                    return reFactor;
-                }
-
-                ////Laythe volcanoes
-                if (layer.Name == "Laythe-HighAlt-Volcanoes")
-                {
-                    NlayerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie >= 0.1f)
-                    {
-                        reFactor = 0;
-                    }
-                    return reFactor;
-                }
-
-                //Mars storm
-                if (layer.Name == "Storms-Dust" || layer.Name == "Stable-Dust")
-                {
-                    NlayerName = layer.Name;
-                    densitie = layer.LayerRaymarchedVolume.SampleCoverage(FlightGlobals.ActiveVessel.transform.position, out float CloudType, false);
-                    if (densitie > 0.3f)
-                    {
-                        //Scope limited to (-0.2,0.64)
-                        reFactor = 1f - densitie * 1.2f;
-                        if (reFactor < 0f)
-                        {
-                            return 0f;
-                        }
-                    }
-                    return reFactor;
-                }
-
-            }
-            return 1f;
-        }*/
-
         public static float VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
         {
             layerName = null;
-            //int stepCount = 500;
-            int stepCount = 100;
+            int stepCount = 500;
+            //int stepCount = 100;
             float totalDensity = 0f;
             bool RSSflag;
 
@@ -146,13 +45,13 @@ namespace WDSP_GenericFunctionModule
 
                     var innerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, innerSphereRadius);
                     var outerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, outerSphereRadius);
-                    var startDistance = Mathf.Min(innerIntersect, outerIntersect);
-                    var endDistance = Mathf.Max(innerIntersect, outerIntersect);
+                    var startDistance = Mathf.Max(0, Mathf.Min(innerIntersect, outerIntersect));
+                    var endDistance = Mathf.Max(0, Mathf.Max(innerIntersect, outerIntersect));
                     Vector3 startPos = currentPosition + lightDirection * startDistance;
                     Vector3 endPos = currentPosition + lightDirection * endDistance;
 
                     float stepSize = (endPos - startPos).magnitude / stepCount;
-
+                    currentPosition = startPos;
                     for (int x = 0; x < stepCount; x++)
                     {
                         float coverageAtposition = layer.LayerRaymarchedVolume.SampleCoverage(currentPosition, out float CloudType, false);
