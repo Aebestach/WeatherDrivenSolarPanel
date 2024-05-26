@@ -121,13 +121,13 @@ namespace WDSP_GenericFunctionModule
                 {
                     middleValue = 0f;
                 }
-                else if (lightTransmittance > 0.001f && lightTransmittance <= 0.3f)
+                else if (lightTransmittance > 0.001f && lightTransmittance <= 0.4f)
                 {
                     //Scope limited to (0.1,0.53)
-                    middleValue = 0.55f * lightTransmittance / 0.31f;
+                    middleValue = 0.55f * lightTransmittance / 0.41f;
                     middleValue = Mathf.Clamp(middleValue, 0.1f, 0.53f);
                 }
-                else if (lightTransmittance > 0.3f && lightTransmittance < 1f)
+                else if (lightTransmittance > 0.4f && lightTransmittance < 1f)
                 {
                     middleValue = Mathf.Max(0.55f, Mathf.Sqrt(lightTransmittance));
                 }
