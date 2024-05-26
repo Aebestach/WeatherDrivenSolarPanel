@@ -129,6 +129,7 @@ namespace weatherDrivenSolarPanel
 
                             // Change the tracking body
                             trackingBody = star.sun;
+                            GetTrackingBodyTransforms();
                             CalculateTracking();
                             //Calculate flux
                             double starFluxAtHome = 0;
