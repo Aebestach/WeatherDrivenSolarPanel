@@ -99,7 +99,7 @@ namespace weatherDrivenSolarPanel
                                 starFluxAtHome = 1360 / PhysicsGlobals.SolarLuminosityAtHome;
                             }
 
-                            double starFlux;
+                            double starFlux = 0;
                             starFlux = star.CalculateFluxAt(vessel) * starFluxAtHome;
 
                             //Check if star has better flux

@@ -1,5 +1,6 @@
 ﻿using Atmosphere;
 using System;
+using System.Linq;
 using UnityEngine;
 using Utils;
 
@@ -24,16 +25,16 @@ namespace WDSP_GenericFunctionModule
             Vector3d toSun = sun.position - vessel.GetWorldPos3D();
             lightDirection = toSun.normalized;
 
-            var layers = CloudsManager.GetObjectList();
-
             string body = FlightGlobals.currentMainBody.bodyName;
+            var layers = CloudsManager.GetObjectList().Where(x => x.Body == body && x.LayerRaymarchedVolume != null);
             scaledTransform = Tools.GetScaledTransform(body);
 
             foreach (var layer in layers)
             {
                 if (layer.Name != "Kerbin-Snow-Particles-1" && layer.Name != "Kerbin-Snow-Particles-2" && layer.Name != "CloudTops"
                     && layer.Name != "EarthAurora1" && layer.Name != "EarthAurora2" && layer.Name != "EarthAurora3"
-                    && layer.Name != "PolarHood" && layer.Name != "TropicalCumulus" && layer.Name != "TholinHaze" && layer.Name != "MethaneDrizzle")
+                    && layer.Name != "PolarHood" && layer.Name != "TropicalCumulus" && layer.Name != "TholinHaze" 
+                    && layer.Name != "MethaneDrizzle")
                 {
                     cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
 

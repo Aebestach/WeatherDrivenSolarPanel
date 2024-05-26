@@ -5,6 +5,7 @@ using KSP.Localization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using WDSP_GenericFunctionModule;
+using System.Collections.Generic;
 
 
 namespace weatherDrivenSolarPanel
@@ -46,17 +47,58 @@ namespace weatherDrivenSolarPanel
         private static readonly FloatCurve AtmosphericAttenutationAirMassMultiplier = new FloatCurve();
         private static readonly FloatCurve AtmosphericAttenutationSolarAngleMultiplier = new FloatCurve();
 
+        private int flagFactor;
+
+        // Define and initialize the cloud dictionary
+        static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>
+    {
+        { "cloudyAffect", new HashSet<string> { "Kerbin-clouds1", "Kerbin-clouds2", "Eve-clouds1", "Eve-clouds2",
+                "Jool-clouds-underworld", "Jool-clouds0", "Jool-clouds1", "Jool-clouds2",
+                "Laythe-clouds1", "Duna-rare-cirrus", "TemperateCumulus",
+                "TemperateAltoStratus", "Cirrus", "Rouqea-clouds1", "Rouqea-clouds2",
+                "Suluco-MainClouds", "Suluco-HighClouds", "Noyreg-clouds1",
+                "Noyreg-clouds2", "Anehta-clouds-underworld", "Anehta-clouds1",
+                "Anehta-clouds2", "Efil-clouds1", "Efil-clouds2" } },
+
+        { "rainAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
+                "Rouqea-Weather", "Suluco-Weather1", "Efil-Weather" } },
+
+        { "dustStormAffect", new HashSet<string> {  "Duna-duststorm-big", "Duna-dust-scattered", "Storms-Dust", 
+            "Stable-Dust" } },
+        
+        { "snowAffect", new HashSet<string> { "Laythe-Weather1", "Suluco-Snow" } },
+
+        { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes" } }
+    };
+        string category;
+
+        static string GetCategoryByValue(string value)
+        {
+            foreach (var kvp in categoryDictionary)
+            {
+                if (kvp.Value.Contains(value))
+                {
+                    return kvp.Key;
+                }
+            }
+            return "Not Found!";
+        }
+
         public override void FixedUpdate()
         {
             base.FixedUpdate();
             //The single star model is updated more frequently.
             //single-star mode=5;
             //multi-star mode=50;
-            int flagFactor = 5;
             if (KopernicusStar.UseMultiStarLogic)
             {
                 flagFactor = 50;
             }
+            else
+            {
+                flagFactor = 5;
+            }
+
 
             //Calculations copied from Kopernicus solving for the energy output of solar panels for single, or multiple stars,
             //while including impact factors for True volumetric clouds.
@@ -81,16 +123,13 @@ namespace weatherDrivenSolarPanel
                             KopernicusStar star = KopernicusStar.Stars[s];
                             // Use this star
                             star.shifter.ApplyPhysics();
-
                             // Set Tracking Speed to zero
                             Single oldTrackingSpeed = trackingSpeed;
                             trackingSpeed = 0;
 
                             // Change the tracking body
                             trackingBody = star.sun;
-                            GetTrackingBodyTransforms();
                             CalculateTracking();
-
                             //Calculate flux
                             double starFluxAtHome = 0;
                             if (PhysicsGlobals.SolarLuminosityAtHome != 0)
@@ -98,7 +137,7 @@ namespace weatherDrivenSolarPanel
                                 starFluxAtHome = 1360 / PhysicsGlobals.SolarLuminosityAtHome;
                             }
 
-                            double starFlux;
+                            double starFlux = 0;
                             starFlux = star.CalculateFluxAt(vessel) * starFluxAtHome;
 
                             //Check if star has better flux
@@ -157,7 +196,6 @@ namespace weatherDrivenSolarPanel
                         CalculateTracking();
                         vessel.solarFlux = totalFlux;
                         //Add to new output
-
                         flowRate = (float)totalFlow;
                         _flowRate = totalFlow / chargeRate;
                         resHandler.UpdateModuleResourceOutputs(_flowRate);
@@ -375,50 +413,33 @@ namespace weatherDrivenSolarPanel
             base.CalculateTracking();
             if (sunAOA > 0)
             {
-                switch (layerName)
+                switch (GetCategoryByValue(layerName))
                 {
-                    case "Kerbin-clouds1":
-                    case "Kerbin-clouds2":
-                    case "Eve-clouds1":
-                    case "Eve-clouds2":
-                    case "Jool-clouds-underworld":
-                    case "Jool-clouds0":
-                    case "Jool-clouds1":
-                    case "Jool-clouds2":
-                    case "Laythe-clouds1":
-                    case "Duna-rare-cirrus":
-                    case "TemperateCumulus":
-                    case "TemperateAltoStratus":
-                    case "Cirrus":
+                    case "cloudyAffect":
                         if (statusChangeValue < 0.95f)
                         {
                             status = WDSP_TVC_cloudyAffect;
                         }
                         break;
-                    case "Kerbin-Weather1":
-                    case "Kerbin-Weather2":
-                    case "TemperateWeather":
+                    case "rainAffect":
                         if (statusChangeValue < 0.85f)
                         {
                             status = WDSP_TVC_rainAffect;
                         }
                         break;
-                    case "Duna-duststorm-big":
-                    case "Duna-dust-scattered":
-                    case "Storms-Dust":
-                    case "Stable-Dust":
+                    case "dustStormAffect":
                         if (statusChangeValue < 0.9f)
                         {
                             status = WDSP_TVC_dustStormAffect;
                         }
                         break;
-                    case "Laythe-Weather1":
+                    case "snowAffect":
                         if (statusChangeValue < 0.9f)
                         {
                             status = WDSP_TVC_snowAffect;
                         }
                         break;
-                    case "Laythe-HighAlt-Volcanoes":
+                    case "volcanoesAffect":
                         if (statusChangeValue < 0.95f)
                         {
                             status = WDSP_TVC_volcanoesAffect;
@@ -432,7 +453,3 @@ namespace weatherDrivenSolarPanel
         }
     }
 }
-
-
-
-
