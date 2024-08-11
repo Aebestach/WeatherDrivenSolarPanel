@@ -40,11 +40,11 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Atmosphere">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\EnvironmentalVisualEnhancements\Plugins\Atmosphere.dll</HintPath>
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\GameData\EnvironmentalVisualEnhancements\Plugins\Atmosphere.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="EVEManager">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\EnvironmentalVisualEnhancements\Plugins\EVEManager.dll</HintPath>
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\GameData\EnvironmentalVisualEnhancements\Plugins\EVEManager.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Kopernicus">
@@ -63,20 +63,27 @@
       <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\KSP_x64_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\KSP_x64_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\KSP_x64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\KSP_x64_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Utils">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\EnvironmentalVisualEnhancements\Plugins\Utils.dll</HintPath>
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Stock\GameData\EnvironmentalVisualEnhancements\Plugins\Utils.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GenericFunctionModule.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="WeatherDrivenSolarPanelStock.cs" />
-    <Compile Include="WeatherDrivenSolarPanelRO.cs" />
+    <Compile Include="WeatherDrivenSolarPanel.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

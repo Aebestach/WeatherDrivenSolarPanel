@@ -8,11 +8,11 @@ namespace WDSP_GenericFunctionModule
 {
     public class GenericFunctionModule
     {
-        public static float VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
+        public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
         {
             layerName = null;
             int stepCount = 500;
-            //int stepCount = 100;
+            //int stepCount = 50;
             float totalDensity = 0f;
             bool RSSflag;
 
@@ -33,8 +33,12 @@ namespace WDSP_GenericFunctionModule
             {
                 if (layer.Name != "Kerbin-Snow-Particles-1" && layer.Name != "Kerbin-Snow-Particles-2" && layer.Name != "CloudTops"
                     && layer.Name != "EarthAurora1" && layer.Name != "EarthAurora2" && layer.Name != "EarthAurora3"
-                    && layer.Name != "PolarHood" && layer.Name != "TropicalCumulus" && layer.Name != "TholinHaze" 
-                    && layer.Name != "MethaneDrizzle")
+                    && layer.Name != "PolarHood" && layer.Name != "TropicalCumulus" && layer.Name != "TholinHaze"
+                    && layer.Name != "MethaneDrizzle" && layer.Name != "Duna-dust-scattered" && layer.Name != "Earth-Snow-Particles-1"
+                    && layer.Name != "Earth-Snow-Particles-2" && layer.Name != "Venus-fog-scattered" && layer.Name != "Venus-highfog-scattered"
+                    && layer.Name != "Titan-fog-scattered" && layer.Name != "Eve-Fog" && layer.Name != "Eve-Weather-Light"
+                    && layer.Name != "Titan-fog-scattered" && layer.Name != "PolarHoodNorth" && layer.Name != "PolarHoodSouth"
+                    && layer.Name != "Huygen-Fog" && layer.Name != "Laythe-Fog")
                 {
                     cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
 
@@ -77,7 +81,7 @@ namespace WDSP_GenericFunctionModule
 
             float lightTransmittance = (float)Math.Exp(-totalDensity);
 
-            float middleValue = 1f;
+            double middleValue = 1.0;
             switch (layerName)
             {
                 case "TemperateCumulus":
@@ -103,7 +107,7 @@ namespace WDSP_GenericFunctionModule
                 else if (layerName == "Storms-Dust" || layerName == "Stable-Dust")
                 {
                     middleValue = Mathf.Sqrt(Mathf.Sqrt(lightTransmittance));
-                    middleValue = Mathf.Clamp(middleValue, 0.4f, 0.75f);
+                    middleValue = Mathf.Clamp((float)middleValue, 0.4f, 0.75f);
                 }
                 else
                 {
@@ -125,7 +129,7 @@ namespace WDSP_GenericFunctionModule
                 {
                     //Scope limited to (0.1,0.53)
                     middleValue = 0.55f * lightTransmittance / 0.41f;
-                    middleValue = Mathf.Clamp(middleValue, 0.1f, 0.53f);
+                    middleValue = Mathf.Clamp((float)middleValue, 0.1f, 0.53f);
                 }
                 else if (lightTransmittance > 0.4f && lightTransmittance < 1f)
                 {
