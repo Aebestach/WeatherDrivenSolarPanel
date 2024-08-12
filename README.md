@@ -29,8 +29,8 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 
 ## Compatibility
 - RSS-Reborn needs ballisticfox to update his Kopernicus
-- Incompatible with kerbalims
-- Compatible with JNSQ, Kcalbeloh System, RO (for RO, replaces the original solar module of RO)
+- Incompatible with Kerbalism
+- Compatible with JNSQ, KSRSS, Kcalbeloh System, RO (for RO, replaces the original solar module of RO)
 
 ## Others 
 Since the v5.0 update, the wear feature has been introduced. Once the wear reaches 100%, the solar panel will be damaged and cannot be repaired.
