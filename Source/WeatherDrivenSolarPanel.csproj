@@ -48,7 +48,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Kopernicus">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
+      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 Kcalbeloh\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
@@ -82,6 +82,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GenericFunctionModule.cs" />
+    <Compile Include="kerbalismFixer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WeatherDrivenSolarPanel.cs" />
   </ItemGroup>
