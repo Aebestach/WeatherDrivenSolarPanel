@@ -14,12 +14,13 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 - [Kopernicus](https://github.com/Kopernicus/Kopernicus)  ***[Please use version v212 or later]*** 
 <br> **I think you might want to take a look at [this](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5), just in case you make a mistake.**
 - [True volumetric clouds](https://www.patreon.com/blackrack/posts)
-- [Module Manager](https://forum.kerbalspaceprogram.com/topic/50533-18x-112x-module-manager-423-july-03th-2023-fireworks-season/)
+- Module Manager
 - If you use Kerbalism, make sure `000_Harmony` exists
 
 ## Installation
 - The installation process is the same as other mods. Just put the WeatherDrivenSolarPanel folder from GameData into the GameData in the game root directory. 
-- Since ray tracing is now used to calculate EC, for some computers with lower CPU performance, you will need to put the `Extra\LowPerformancePlugin\WeatherDrivenSolarPanel.dll` into the `GameData\WeatherDrivenSolarPanel\Plugin` to overwrite the original *WeatherDrivenSolarPanel.dll*. 
+- Since ray tracing is now used to calculate EC, for some computers with lower CPU performance, you will need to put the `Extras\NoKerbalism_LowPerformancePlugin\WeatherDrivenSolarPanel.dll` into the `GameData\WeatherDrivenSolarPanel\Plugin` to overwrite the original *WeatherDrivenSolarPanel.dll*. 
+- If you use the Kerbalism version, please copy `Extras\KerbalismSupport\HighPerformancePlugin\WeatherDrivenSolarPanel.dll` to `GameData\WeatherDrivenSolarPanel\Plugin` and replace it. Of course I also provide a weak CPU version for Kerbalism users.
 <br>(The default is for high performance computer users. In fact you can try to use the high performance *.dll* and if there is noticeable lag then use the low performance *.dll*).
 
 ## Preview Image & Video
