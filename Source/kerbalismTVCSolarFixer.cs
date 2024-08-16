@@ -485,7 +485,7 @@ namespace WeatherDrivenSolarPanel
                         __instance.sb.Append(", ");
                         __instance.sb.Append(Local.SolarPanelFixer_wear);//wear
                         __instance.sb.Append(" : ");
-                        __instance.sb.Append((1.0 - __instance.wearFactor).ToString("P0"));
+                        __instance.sb.Append((1.0 - __instance.wearFactor).ToString("P2"));
                     }
                     if (__instance.vessel.atmDensity > 0)
                     {
