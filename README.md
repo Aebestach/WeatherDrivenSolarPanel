@@ -12,7 +12,7 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 ## Dependencies
 
 - [Kopernicus](https://github.com/Kopernicus/Kopernicus)  ***[Please use version v212 or later]*** 
-**I think you might want to take a look at [this](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5), just in case you make a mistake.**
+<br> **I think you might want to take a look at [this](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5), just in case you make a mistake.**
 - [True volumetric clouds](https://www.patreon.com/blackrack/posts)
 - [Module Manager](https://forum.kerbalspaceprogram.com/topic/50533-18x-112x-module-manager-423-july-03th-2023-fireworks-season/)
 - If you use Kerbalism, make sure `000_Harmony` exists
