@@ -11,9 +11,11 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 
 ## Dependencies
 
-- [Kopernicus](https://github.com/Kopernicus/Kopernicus)  ***[Please use version v212 or later]***
+- [Kopernicus](https://github.com/Kopernicus/Kopernicus)  ***[Please use version v212 or later]*** 
+**I think you might want to take a look at [this](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5), just in case you make a mistake.**
 - [True volumetric clouds](https://www.patreon.com/blackrack/posts)
 - [Module Manager](https://forum.kerbalspaceprogram.com/topic/50533-18x-112x-module-manager-423-july-03th-2023-fireworks-season/)
+- If you use Kerbalism, make sure `000_Harmony` exists
 
 ## Installation
 - The installation process is the same as other mods. Just put the WeatherDrivenSolarPanel folder from GameData into the GameData in the game root directory. 
@@ -29,13 +31,12 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 
 ## Compatibility
 - RSS-Reborn needs ballisticfox to update his Kopernicus
-- Incompatible with Kerbalism
-- Compatible with JNSQ, KSRSS, Kcalbeloh System, RO (for RO, replaces the original solar module of RO)
+- Compatible with JNSQ, KSRSS, Kcalbeloh System, RO (for RO, replaces the original solar module of RO), Kerbalism
 
 ## Others 
 Since the v5.0 update, the wear feature has been introduced. Once the wear reaches 100%, the solar panel will be damaged and cannot be repaired.
-1. The solar panel will increase wear over time.
-2. The solar panel will increase wear due to weather.
+- The solar panel will increase wear over time. (This feature is not enabled in the Stock+Kerbalism environment and is disabled by default.)
+- The solar panel will increase wear due to weather.
 
 **Note: This process is irreversible.** If you do not need these two new features, you can turn them off in`WeatherDrivenSolarPanel/Config/GlobalConfig.cfg`.
 
@@ -46,6 +47,6 @@ Since the v5.0 update, the wear feature has been introduced. Once the wear reach
 ![Imgur](https://imgur.com/YpfMMHJ.png)
 
 ## Credits
-[@R-T-B](https://github.com/R-T-B)      Part of the Kopernicus code was used.
-<br>[@LGhassen](https://github.com/LGhassen)      Thank him for bringing the commendable volumetric cloud mod to KSP.
-<br> **Thanks to both of them for their help with this plugin!**
+- Thank you so much to [R-T-B](https://github.com/R-T-B)  for all your help with WDSP.
+- Thanks to [blackrack](https://github.com/LGhassen)  for the beautiful beautification mod and for his help in it.
+-  **Thanks to both of them for their help with this plugin!**

@@ -33,9 +33,25 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_Kerbalism|AnyCPU'">
+    <OutputPath>Output\Release\Kerbalism\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU'">
+    <OutputPath>Output\Release\NoKerbalism\</OutputPath>
+    <DefineConstants>TRACE;REDUCED</DefineConstants>
+    <Optimize>true</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\..\..\Games\KSP\1.12.5 English\GameData\000_Harmony\0Harmony.dll</HintPath>
+      <HintPath>Plugins\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
@@ -55,7 +71,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Kerbalism112">
-      <HintPath>.\Kerbalism112.dll</HintPath>
+      <HintPath>Plugins\Kerbalism112.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Kopernicus">

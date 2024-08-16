@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿#if !REDUCED
+using UnityEngine;
 using HarmonyLib;
 using KERBALISM;
 using static KERBALISM.SolarPanelFixer;
@@ -561,3 +562,4 @@ namespace WeatherDrivenSolarPanel
         }
     }
 }
+#endif

@@ -8,11 +8,17 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Release_Kerbalism|Any CPU = Release_Kerbalism|Any CPU
+		Release_NoKerbalism|Any CPU = Release_NoKerbalism|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release_Kerbalism|Any CPU.ActiveCfg = Release_Kerbalism|Any CPU
+		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release_Kerbalism|Any CPU.Build.0 = Release_Kerbalism|Any CPU
+		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release_NoKerbalism|Any CPU.ActiveCfg = Release_NoKerbalism|Any CPU
+		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release_NoKerbalism|Any CPU.Build.0 = Release_NoKerbalism|Any CPU
 		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8D27838D-25CE-4414-92D4-EA2ADA791063}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
