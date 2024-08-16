@@ -337,6 +337,13 @@ namespace WeatherDrivenSolarPanel
 
             }
 
+            if (HighLogic.LoadedSceneIsEditor || vessel.situation == Vessel.Situations.PRELAUNCH)
+            {
+                wearFactorTVC = 1.0;
+                totalWeatherTime = 0.0;
+                _timeWeather = -1.0;
+            }
+
             if (!prefabDefinesTimeEfficCurve)
                 timeEfficCurve = SolarPanel.GetTimeCurve();
 
@@ -638,8 +645,6 @@ namespace WeatherDrivenSolarPanel
                     _timeWeather = currentTime;
                 }
                 calculateStatus(totalWeatherTime);
-                if (wearFactorTVC < 0)
-                    wearFactorTVC = 0;
             }
             else if (vessel.atmDensity <= 0)
             {
