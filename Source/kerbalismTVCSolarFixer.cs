@@ -9,7 +9,7 @@ using WDSP_GenericFunctionModule;
 namespace WeatherDrivenSolarPanel
 {
     [KSPAddon(KSPAddon.Startup.Flight, true)]
-    public class Injector : MonoBehaviour
+    public class WDSPInjector : MonoBehaviour
     {
         public static double WeatherImpactFactor;
         public static string layerName = null;
@@ -24,6 +24,7 @@ namespace WeatherDrivenSolarPanel
         public static string WDSP_TVC_snowAffect = GetLocWDSP("snowAffect");                                           // "Snow Weather"
         public static string WDSP_TVC_volcanoesAffect = GetLocWDSP("volcanoesAffect");                                 // "Affected by volcanoes"
         public static string WDSP_TVC_sunDirect = GetLocWDSP("sunDirect");                                             // "Sunny"
+        public static string WDSP_TVC_weatherStatus = GetLocWDSP("weatherStatus");                                    // "Sunny"
         // Define and initialize the cloud dictionary
         public static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>
     {
@@ -48,10 +49,6 @@ namespace WeatherDrivenSolarPanel
 
         { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
     };
-        /// <summary>Main PAW info label</summary>
-        [KSPField(guiActive = true, guiActiveEditor = false, guiName = "#WDSP_TVC_weatherStatus")]//Weather Status
-        public static string weatherPanelStatus = string.Empty;
-
         public void Awake()
         {
             Harmony harmony = new Harmony("WeatherDrivenSolarPanel");
@@ -60,8 +57,9 @@ namespace WeatherDrivenSolarPanel
     }
 
     [HarmonyPatch(typeof(SolarPanelFixer), "FixedUpdate")]
-    public static class kerbalismTVCSolarFixer
+    public static class kerbalismTVCFixedUpdateSolarFixer
     {
+        static double _currentOutput;
         public static bool Prefix(SolarPanelFixer __instance)
         {
             // sanity check
@@ -87,13 +85,13 @@ namespace WeatherDrivenSolarPanel
             {
                 __instance.exposureState = ExposureState.Disabled;
                 __instance.currentOutput = 0.0;
-                //return;
+                return true;
             }
 
             // do nothing else in editor
             if (Lib.IsEditor())
             {
-                //return;
+                return true;
             }
 
             // get vessel data from cache
@@ -102,7 +100,7 @@ namespace WeatherDrivenSolarPanel
             // do nothing if vessel is invalid
             if (!vd.IsSimulated)
             {
-                //return;
+                return true;
             }
 
             // Update tracked sun in auto mode
@@ -218,38 +216,160 @@ namespace WeatherDrivenSolarPanel
             //Handles logic related to volumetric clouds
             if (__instance.vessel.atmDensity > 0)
             {
-                Injector.WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSunInfo.SunData.body, out string NlayerName);
-                Injector.layerName = NlayerName;
-                calculateStatus();
+                WDSPInjector.WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSunInfo.SunData.body, out string NlayerName);
+                WDSPInjector.layerName = NlayerName;
+                WDSPInjector.statusChangeValue = WDSPInjector.WeatherImpactFactor;
             }
-
             // get final output rate in EC/s
-            __instance.currentOutput = __instance.nominalRate * __instance.wearFactor * distanceFactor * __instance.exposureFactor * Injector.WeatherImpactFactor; ;
+            __instance.currentOutput = __instance.nominalRate * __instance.wearFactor * distanceFactor * __instance.exposureFactor;
 
             // ignore very small outputs
             if (__instance.currentOutput < 1e-10)
             {
                 __instance.currentOutput = 0.0;
-                //return;
+                return true;
             }
-
             // get resource handler
             ResourceInfo ec = KERBALISM.ResourceCache.GetResource(__instance.vessel, "ElectricCharge");
-
+            __instance.currentOutput = __instance.currentOutput * WDSPInjector.WeatherImpactFactor;
             // produce EC
             ec.Produce(__instance.currentOutput * Kerbalism.elapsed_s, KERBALISM.ResourceBroker.SolarPanel);
 
             return false;
         }
+    }
 
-        /*public static void Postfix(SolarPanelFixer __instance)
+    [HarmonyPatch(typeof(SolarPanelFixer), "Update")]
+    public static class kerbalismTVCUpdateSolarFixer
+    {
+        public static bool Prefix(SolarPanelFixer __instance)
         {
-            //__instance.currentOutput = 10;
-        }*/
+            // sanity check
+            if (__instance.SolarPanel == null) return true;
 
+            // call Update specfic handling, if any
+            __instance.SolarPanel.OnUpdate();
+
+            // Do nothing else in the editor
+            if (Lib.IsEditor()) return true;
+
+            // Don't update PAW if not needed
+            if (!__instance.part.IsPAWVisible()) return true;
+
+            // Update tracked body selection button (Kopernicus multi-star support)
+            if (__instance.Events["ManualTracking"].active && (__instance.state == PanelState.Extended || __instance.state == PanelState.ExtendedFixed || __instance.state == PanelState.Static))
+            {
+                __instance.Events["ManualTracking"].guiActive = true;
+                __instance.Events["ManualTracking"].guiName = Lib.BuildString(Local.SolarPanelFixer_Trackedstar + " ", __instance.manualTracking ? ": " : Local.SolarPanelFixer_AutoTrack, FlightGlobals.Bodies[__instance.trackedSunIndex].bodyDisplayName.Replace("^N", ""));//"Tracked star"[Auto] : "
+            }
+            else
+            {
+                __instance.Events["ManualTracking"].guiActive = false;
+            }
+
+            // Update main status field visibility
+            if (__instance.state == PanelState.Failure || __instance.state == PanelState.Unknown)
+                __instance.Fields["panelStatus"].guiActive = false;
+            else
+                __instance.Fields["panelStatus"].guiActive = true;
+
+            // Update main status field text
+            bool addRate = false;
+            switch (__instance.exposureState)
+            {
+                case ExposureState.InShadow:
+                    __instance.panelStatus = "<color=#ff2222>" + Local.SolarPanelFixer_inshadow + "</color>";//in shadow
+                    addRate = true;
+                    break;
+                case ExposureState.OccludedTerrain:
+                    __instance.panelStatus = "<color=#ff2222>" + Local.SolarPanelFixer_occludedbyterrain + "</color>";//occluded by terrain
+                    addRate = true;
+                    break;
+                case ExposureState.OccludedPart:
+                    __instance.panelStatus = Lib.BuildString("<color=#ff2222>", Local.SolarPanelFixer_occludedby.Format(__instance.mainOccludingPart), "</color>");//occluded by 
+                    addRate = true;
+                    break;
+                case ExposureState.BadOrientation:
+                    __instance.panelStatus = "<color=#ff2222>" + Local.SolarPanelFixer_badorientation + "</color>";//bad orientation
+                    addRate = true;
+                    break;
+                case ExposureState.Disabled:
+                    switch (__instance.state)
+                    {
+                        case PanelState.Retracted: __instance.panelStatus = Local.SolarPanelFixer_retracted; break;//"retracted"
+                        case PanelState.Extending: __instance.panelStatus = Local.SolarPanelFixer_extending; break;//"extending"
+                        case PanelState.Retracting: __instance.panelStatus = Local.SolarPanelFixer_retracting; break;//"retracting"
+                        case PanelState.Broken: __instance.panelStatus = Local.SolarPanelFixer_broken; break;//"broken"
+                        case PanelState.Failure: __instance.panelStatus = Local.SolarPanelFixer_failure; break;//"failure"
+                        case PanelState.Unknown: __instance.panelStatus = Local.SolarPanelFixer_invalidstate; break;//"invalid state"
+                    }
+                    break;
+                case ExposureState.Exposed:
+
+                    __instance.sb.Length = 0;
+                    if (Settings.UseSIUnits)
+                    {
+                        if (__instance.hasRUI)
+                            __instance.sb.Append(Lib.SIRate(__instance.currentOutput, Lib.ECResID));
+                        else
+                            __instance.sb.Append(Lib.SIRate(__instance.currentOutput, __instance.EcUIUnit));
+                    }
+                    else
+                    {
+                        __instance.sb.Append(__instance.currentOutput.ToString(__instance.rateFormat));
+                        __instance.sb.Append(" ");
+                        __instance.sb.Append(__instance.EcUIUnit);
+                    }
+                    if (__instance.analyticSunlight)
+                    {
+                        __instance.sb.Append(", ");
+                        __instance.sb.Append(Local.SolarPanelFixer_analytic);//analytic
+                        __instance.sb.Append(" ");
+                        __instance.sb.Append(__instance.persistentFactor.ToString("P0"));
+                    }
+                    else
+                    {
+                        __instance.sb.Append(", ");
+                        __instance.sb.Append(Local.SolarPanelFixer_exposure);//exposure
+                        __instance.sb.Append(" ");
+                        __instance.sb.Append(__instance.exposureFactor.ToString("P0"));
+                        if (__instance.vessel.atmDensity > 0)
+                        {
+                            __instance.sb.Append("\n");
+                            __instance.sb.Append(WDSPInjector.WDSP_TVC_weatherStatus);
+                            __instance.sb.Append(": ");
+                            __instance.sb.Append(CalculateStatus());
+                        }
+                    }
+                    if (__instance.wearFactor < 1.0)
+                    {
+                        __instance.sb.Append("\n");
+                        __instance.sb.Append(Local.SolarPanelFixer_wear);//wear
+                        __instance.sb.Append(" : ");
+                        __instance.sb.Append((1.0 - __instance.wearFactor).ToString("P0"));
+                    }
+                    __instance.panelStatus = __instance.sb.ToString();
+                    break;
+            }
+            if (addRate && __instance.currentOutput > 0.001)
+            {
+                if (Settings.UseSIUnits)
+                {
+                    if (__instance.hasRUI)
+                        Lib.BuildString(Lib.SIRate(__instance.currentOutput, Lib.ECResID), ", ", __instance.panelStatus);
+                    else
+                        Lib.BuildString(Lib.SIRate(__instance.currentOutput, __instance.EcUIUnit), ", ", __instance.panelStatus);
+                }
+                else
+                {
+                    Lib.BuildString(__instance.currentOutput.ToString(__instance.rateFormat), " ", __instance.EcUIUnit, ", ", __instance.panelStatus);
+                }
+            }
+            return false;
+        }
         static string GetCategoryByValue(string value)
         {
-            foreach (var kvp in Injector.categoryDictionary)
+            foreach (var kvp in WDSPInjector.categoryDictionary)
             {
                 if (kvp.Value.Contains(value))
                 {
@@ -259,45 +379,46 @@ namespace WeatherDrivenSolarPanel
             return "Not Found!";
         }
 
-        static public void calculateStatus()
+        public static string CalculateStatus()
         {
-            switch (GetCategoryByValue(Injector.layerName))
+            Debug.Log($"WDSPInjector.statusChangeValue is {WDSPInjector.statusChangeValue}");
+            switch (GetCategoryByValue(WDSPInjector.layerName))
             {
                 case "cloudyAffect":
-                    if (Injector.statusChangeValue < 0.95f)
+                    if (WDSPInjector.statusChangeValue < 0.8f)
                     {
-                        Injector.weatherPanelStatus = "<color=#5F9F9F>" + Injector.WDSP_TVC_cloudyAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_cloudyAffect + "</color>";
                     }
                     break;
                 case "rainAffect":
-                    if (Injector.statusChangeValue < 0.85f)
+                    if (WDSPInjector.statusChangeValue < 0.8f)
                     {
-                        Injector.weatherPanelStatus = "<color=#5F9F9F>" + Injector.WDSP_TVC_rainAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_rainAffect + "</color>";
                     }
                     break;
                 case "dustStormAffect":
-                    if (Injector.statusChangeValue < 0.9f)
+                    if (WDSPInjector.statusChangeValue < 0.8f)
                     {
-                        Injector.weatherPanelStatus = "<color=#5F9F9F>" + Injector.WDSP_TVC_dustStormAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_dustStormAffect + "</color>";
                     }
                     break;
                 case "snowAffect":
-                    if (Injector.statusChangeValue < 0.9f)
+                    if (WDSPInjector.statusChangeValue < 0.8f)
                     {
-                        Injector.weatherPanelStatus = "<color=#5F9F9F>" + Injector.WDSP_TVC_snowAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
                 case "volcanoesAffect":
-                    if (Injector.statusChangeValue < 0.95f)
+                    if (WDSPInjector.statusChangeValue < 0.8f)
                     {
-                        Injector.weatherPanelStatus = "<color=#5F9F9F>" + Injector.WDSP_TVC_volcanoesAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_volcanoesAffect + "</color>";
                     }
                     break;
                 default:
                     // Default case if none of the above conditions are met
-                    Injector.weatherPanelStatus = "<color=#FF7F00>" + Injector.WDSP_TVC_sunDirect + "</color>";
-                    break;
+                    return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
             }
+            return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
         }
     }
 }
