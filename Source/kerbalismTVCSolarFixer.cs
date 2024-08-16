@@ -49,6 +49,21 @@ namespace WeatherDrivenSolarPanel
 
         { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
     };
+        public static readonly FloatCurve weatherTimeEfficCurve = new FloatCurve();
+
+        [KSPField(isPersistant = true)]
+        public static double totalWeatherTime = 0.0;
+        [KSPField(isPersistant = true)]
+        public static double wearFactorTVC = 1.0;
+        [KSPField(isPersistant = true)]
+        public static double timeWeather = -1.0;
+        [KSPField(isPersistant = true)]
+        public static bool timeBool = false;
+        [KSPField(isPersistant = true)]
+        public static double _timeWeather = -1.0;
+
+        public static bool switchWeatherAffectWear;
+        public static string weatherStatus;
         public void Awake()
         {
             Harmony harmony = new Harmony("WeatherDrivenSolarPanel");
@@ -57,7 +72,7 @@ namespace WeatherDrivenSolarPanel
     }
 
     [HarmonyPatch(typeof(SolarPanelFixer), "FixedUpdate")]
-    public static class kerbalismTVCFixedUpdateSolarFixer
+    public static class FixedUpdate_SolarFixer
     {
         static double _currentOutput;
         public static bool Prefix(SolarPanelFixer __instance)
@@ -214,33 +229,163 @@ namespace WeatherDrivenSolarPanel
 
 
             //Handles logic related to volumetric clouds
-            if (__instance.vessel.atmDensity > 0)
+            if (__instance.vessel.atmDensity > 0 && WDSPInjector.switchWeatherAffectWear)
             {
                 WDSPInjector.WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSunInfo.SunData.body, out string NlayerName);
                 WDSPInjector.layerName = NlayerName;
                 WDSPInjector.statusChangeValue = WDSPInjector.WeatherImpactFactor;
+                if (__instance.vessel != null && (__instance.vessel.situation == Vessel.Situations.FLYING || __instance.vessel.situation == Vessel.Situations.LANDED)
+                    && (GetCategoryByValue(WDSPInjector.layerName) != "cloudyAffect")
+                    && WDSPInjector.WeatherImpactFactor < 0.9f)
+                {
+                    if (WDSPInjector.timeWeather < 0)
+                    {
+                        WDSPInjector.timeWeather = Planetarium.GetUniversalTime();
+                        WDSPInjector.timeBool = true;
+                        WDSPInjector._timeWeather = WDSPInjector.timeWeather;
+                    }
+                }
+                else
+                {
+                    WDSPInjector.timeBool = false;
+                    WDSPInjector.timeWeather = -1.0;
+                }
+                if (WDSPInjector.timeBool && WDSPInjector.timeWeather >= 0 && WDSPInjector._timeWeather > 0)
+                {
+                    double currentTime = Planetarium.GetUniversalTime();
+                    WDSPInjector.totalWeatherTime += (currentTime - WDSPInjector._timeWeather);
+                    WDSPInjector._timeWeather = currentTime;
+                }
+                if (WDSPInjector.wearFactorTVC < 0)
+                    WDSPInjector.wearFactorTVC = 0;
+
+                if (WDSPInjector.switchWeatherAffectWear)
+                    WDSPInjector.weatherStatus = CalculateStatus(WDSPInjector.totalWeatherTime);
+                else
+                    WDSPInjector.weatherStatus = CalculateStatus();
             }
+
             // get final output rate in EC/s
             __instance.currentOutput = __instance.nominalRate * __instance.wearFactor * distanceFactor * __instance.exposureFactor;
-
             // ignore very small outputs
             if (__instance.currentOutput < 1e-10)
             {
                 __instance.currentOutput = 0.0;
                 return true;
             }
+            __instance.wearFactor = __instance.wearFactor * WDSPInjector.wearFactorTVC;
+            __instance.currentOutput = __instance.currentOutput * WDSPInjector.WeatherImpactFactor * __instance.wearFactor;
             // get resource handler
             ResourceInfo ec = KERBALISM.ResourceCache.GetResource(__instance.vessel, "ElectricCharge");
-            __instance.currentOutput = __instance.currentOutput * WDSPInjector.WeatherImpactFactor;
             // produce EC
             ec.Produce(__instance.currentOutput * Kerbalism.elapsed_s, KERBALISM.ResourceBroker.SolarPanel);
 
             return false;
         }
+
+        public static string GetCategoryByValue(string value)
+        {
+            foreach (var kvp in WDSPInjector.categoryDictionary)
+            {
+                if (kvp.Value.Contains(value))
+                {
+                    return kvp.Key;
+                }
+            }
+            return "Not Found!";
+        }
+        public static string CalculateStatus()
+        {
+            switch (GetCategoryByValue(WDSPInjector.layerName))
+            {
+                case "cloudyAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_cloudyAffect + "</color>";
+                    }
+                    break;
+                case "rainAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_rainAffect + "</color>";
+                    }
+                    break;
+                case "dustStormAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_dustStormAffect + "</color>";
+                    }
+                    break;
+                case "snowAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_snowAffect + "</color>";
+                    }
+                    break;
+                case "volcanoesAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_volcanoesAffect + "</color>";
+                    }
+                    break;
+                default:
+                    // Default case if none of the above conditions are met
+                    return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+            }
+            return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+        }
+        public static string CalculateStatus(double weatherTime)
+        {
+            switch (GetCategoryByValue(WDSPInjector.layerName))
+            {
+                case "cloudyAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_cloudyAffect + "</color>";
+                    }
+                    break;
+                case "rainAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        if (WDSPInjector.statusChangeValue < 0.25f)
+                            WDSPInjector.wearFactorTVC = Lib.Clamp(WDSPInjector.weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_rainAffect + "</color>";
+                    }
+                    break;
+                case "dustStormAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        if (WDSPInjector.statusChangeValue < 0.65f)
+                            WDSPInjector.wearFactorTVC = Lib.Clamp(WDSPInjector.weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_dustStormAffect + "</color>";
+                    }
+                    break;
+                case "snowAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        if (WDSPInjector.statusChangeValue < 0.25f)
+                            WDSPInjector.wearFactorTVC = Lib.Clamp(WDSPInjector.weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_snowAffect + "</color>";
+                    }
+                    break;
+                case "volcanoesAffect":
+                    if (WDSPInjector.statusChangeValue < 0.8f)
+                    {
+                        if (WDSPInjector.statusChangeValue < 0.55f)
+                            WDSPInjector.wearFactorTVC = Lib.Clamp(WDSPInjector.weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_volcanoesAffect + "</color>";
+                    }
+                    break;
+                default:
+                    // Default case if none of the above conditions are met
+                    return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+            }
+            return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+        }
     }
 
     [HarmonyPatch(typeof(SolarPanelFixer), "Update")]
-    public static class kerbalismTVCUpdateSolarFixer
+    public static class Update_SolarFixer
     {
         public static bool Prefix(SolarPanelFixer __instance)
         {
@@ -333,24 +478,27 @@ namespace WeatherDrivenSolarPanel
                         __instance.sb.Append(Local.SolarPanelFixer_exposure);//exposure
                         __instance.sb.Append(" ");
                         __instance.sb.Append(__instance.exposureFactor.ToString("P0"));
-                        if (__instance.vessel.atmDensity > 0)
-                        {
-                            __instance.sb.Append("\n");
-                            __instance.sb.Append(WDSPInjector.WDSP_TVC_weatherStatus);
-                            __instance.sb.Append(": ");
-                            __instance.sb.Append(CalculateStatus());
-                        }
                     }
                     if (__instance.wearFactor < 1.0)
                     {
-                        __instance.sb.Append("\n");
+                        __instance.sb.Append(", ");
                         __instance.sb.Append(Local.SolarPanelFixer_wear);//wear
                         __instance.sb.Append(" : ");
                         __instance.sb.Append((1.0 - __instance.wearFactor).ToString("P0"));
                     }
+                    if (__instance.vessel.atmDensity > 0)
+                    {
+                        __instance.sb.Append("\n");
+                        __instance.sb.Append(WDSPInjector.WDSP_TVC_weatherStatus);
+                        __instance.sb.Append(": ");
+                        __instance.sb.Append(WDSPInjector.weatherStatus);
+
+                    }
                     __instance.panelStatus = __instance.sb.ToString();
                     break;
             }
+
+
             if (addRate && __instance.currentOutput > 0.001)
             {
                 if (Settings.UseSIUnits)
@@ -367,58 +515,49 @@ namespace WeatherDrivenSolarPanel
             }
             return false;
         }
-        static string GetCategoryByValue(string value)
+    }
+
+    [HarmonyPatch(typeof(SolarPanelFixer), "OnStart")]
+    public static class OnStart_SolarFixer
+    {
+        public static void Prefix(SolarPanelFixer __instance)
         {
-            foreach (var kvp in WDSPInjector.categoryDictionary)
+            LoadConfig();
+            WDSPInjector.weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
+            WDSPInjector.weatherTimeEfficCurve.Add(426f, 0.8f, -0.0007042254f, -0.0007042254f);
+            WDSPInjector.weatherTimeEfficCurve.Add(852f, 0.4f, -0.000528169f, -0.000528169f);
+            WDSPInjector.weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0002347418f, -0.0002347418f);
+            WDSPInjector.weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
+            WDSPInjector.weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
+
+            if (HighLogic.LoadedSceneIsEditor || __instance.vessel.situation == Vessel.Situations.PRELAUNCH)
             {
-                if (kvp.Value.Contains(value))
-                {
-                    return kvp.Key;
-                }
+                WDSPInjector.wearFactorTVC = 1.0;
+                WDSPInjector.totalWeatherTime = 0.0;
+                WDSPInjector._timeWeather = -1.0;
             }
-            return "Not Found!";
         }
 
-        public static string CalculateStatus()
+        public static void LoadConfig()
         {
-            Debug.Log($"WDSPInjector.statusChangeValue is {WDSPInjector.statusChangeValue}");
-            switch (GetCategoryByValue(WDSPInjector.layerName))
+            string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/GlobalConfig.cfg";
+
+            ConfigNode configNode = ConfigNode.Load(configFilePath);
+            if (configNode != null)
             {
-                case "cloudyAffect":
-                    if (WDSPInjector.statusChangeValue < 0.8f)
+                ConfigNode myPluginNode = configNode.GetNode("WDSP");
+                if (myPluginNode != null)
+                {
+                    if (myPluginNode.HasValue("switchWeatherAffectWear"))
                     {
-                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_cloudyAffect + "</color>";
+                        WDSPInjector.switchWeatherAffectWear = bool.Parse(myPluginNode.GetValue("switchWeatherAffectWear"));
                     }
-                    break;
-                case "rainAffect":
-                    if (WDSPInjector.statusChangeValue < 0.8f)
-                    {
-                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_rainAffect + "</color>";
-                    }
-                    break;
-                case "dustStormAffect":
-                    if (WDSPInjector.statusChangeValue < 0.8f)
-                    {
-                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "snowAffect":
-                    if (WDSPInjector.statusChangeValue < 0.8f)
-                    {
-                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_snowAffect + "</color>";
-                    }
-                    break;
-                case "volcanoesAffect":
-                    if (WDSPInjector.statusChangeValue < 0.8f)
-                    {
-                        return "<color=#5F9F9F>" + WDSPInjector.WDSP_TVC_volcanoesAffect + "</color>";
-                    }
-                    break;
-                default:
-                    // Default case if none of the above conditions are met
-                    return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+                }
             }
-            return "<color=#FF7F00>" + WDSPInjector.WDSP_TVC_sunDirect + "</color>";
+            else
+            {
+                Debug.LogError("Failed to load config file: " + configFilePath);
+            }
         }
     }
 }
