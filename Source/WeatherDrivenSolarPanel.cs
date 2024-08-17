@@ -193,6 +193,8 @@ namespace WeatherDrivenSolarPanel
 
         bool switchTimeDecayWear;
         bool switchWeatherAffectWear;
+
+        public static Vector3d currentPosition;
         #endregion
 
         #region KSP/Unity methods + background update
@@ -618,7 +620,7 @@ namespace WeatherDrivenSolarPanel
 
             if (vessel.atmDensity > 0 && switchWeatherAffectWear)
             {
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName, currentPosition);
                 layerName = NlayerName;
                 statusChangeValue = WeatherImpactFactor;
                 if (vessel != null && (vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.LANDED)
@@ -653,7 +655,7 @@ namespace WeatherDrivenSolarPanel
             else if (switchWeatherAffectWear == false)
             {
                 wearFactorTVC = 1.0;
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName, currentPosition);
                 layerName = NlayerName;
                 statusChangeValue = WeatherImpactFactor;
                 calculateStatus();
@@ -1326,6 +1328,7 @@ namespace WeatherDrivenSolarPanel
                 if (sunCatcherPosition == null)
                     sunCatcherPosition = panelModule.part.FindModelTransform(panelModule.secondaryTransformName);
 
+                currentPosition = sunCatcherPosition.position + (sunDir * panelModule.raycastOffset);
                 Physics.Raycast(sunCatcherPosition.position + (sunDir * panelModule.raycastOffset), sunDir, out raycastHit, 10000f);
 
                 if (raycastHit.collider != null)
