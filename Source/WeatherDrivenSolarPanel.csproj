@@ -43,7 +43,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU'">
     <OutputPath>Output\Release\NoKerbalism\</OutputPath>
-    <DefineConstants>TRACE;REDUCED</DefineConstants>
+    <DefineConstants>TRACE;NoKerbalism</DefineConstants>
     <Optimize>true</Optimize>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <LangVersion>7.3</LangVersion>

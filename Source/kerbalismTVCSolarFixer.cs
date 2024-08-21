@@ -1,4 +1,4 @@
-﻿#if !REDUCED
+﻿#if !NoKerbalism
 using UnityEngine;
 using HarmonyLib;
 using KERBALISM;

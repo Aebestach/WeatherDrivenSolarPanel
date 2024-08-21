@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#if NoKerbalism
+using System.Collections.Generic;
 using System.Text;
 using System;
 using UnityEngine;
@@ -194,7 +195,7 @@ namespace WeatherDrivenSolarPanel
         bool switchTimeDecayWear;
         bool switchWeatherAffectWear;
 
-        public static Vector3d currentPosition;
+        public static string resourceName = null;
         #endregion
 
         #region KSP/Unity methods + background update
@@ -447,7 +448,10 @@ namespace WeatherDrivenSolarPanel
                     {
                         num = currentOutput;
                     }
-
+                    if (resourceName == "ThermalPower")
+                    {
+                        EcUIUnit = "TP/s";
+                    }
                     sb.Append(num.ToString(rateFormat));
                     sb.Append(" ");
                     sb.Append(EcUIUnit);
@@ -602,6 +606,48 @@ namespace WeatherDrivenSolarPanel
                 if (star.sun.Equals(trackedSun))
                 {
                     exposureFactor = sunExposureFactor;
+                    if (vessel.atmDensity > 0 && switchWeatherAffectWear)
+                    {
+                        WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                        layerName = NlayerName;
+                        statusChangeValue = WeatherImpactFactor;
+                        if (vessel != null && (vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.LANDED)
+                            && (GetCategoryByValue(layerName) != "cloudyAffect")
+                            && WeatherImpactFactor < 0.9f)
+                        {
+                            if (timeWeather < 0)
+                            {
+                                timeWeather = Planetarium.GetUniversalTime();
+                                timeBool = true;
+                                _timeWeather = timeWeather;
+                            }
+                        }
+                        else
+                        {
+                            timeBool = false;
+                            timeWeather = -1.0;
+                        }
+
+                        if (timeBool && timeWeather >= 0 && _timeWeather > 0)
+                        {
+                            double currentTime = Planetarium.GetUniversalTime();
+                            totalWeatherTime += (currentTime - _timeWeather);
+                            _timeWeather = currentTime;
+                        }
+                        calculateStatus(totalWeatherTime);
+                    }
+                    else if (vessel.atmDensity <= 0)
+                    {
+                        Fields["weatherPanelStatus"].guiActive = false;
+                    }
+                    else if (switchWeatherAffectWear == false)
+                    {
+                        wearFactorTVC = 1.0;
+                        WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                        layerName = NlayerName;
+                        statusChangeValue = WeatherImpactFactor;
+                        calculateStatus();
+                    }
                 }
 
                 if ((sunExposureFactor != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
@@ -617,51 +663,6 @@ namespace WeatherDrivenSolarPanel
                 }
             }
 
-
-            if (vessel.atmDensity > 0 && switchWeatherAffectWear)
-            {
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName, currentPosition);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
-                if (vessel != null && (vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.LANDED)
-                    && (GetCategoryByValue(layerName) != "cloudyAffect")
-                    && WeatherImpactFactor < 0.9f)
-                {
-                    if (timeWeather < 0)
-                    {
-                        timeWeather = Planetarium.GetUniversalTime();
-                        timeBool = true;
-                        _timeWeather = timeWeather;
-                    }
-                }
-                else
-                {
-                    timeBool = false;
-                    timeWeather = -1.0;
-                }
-
-                if (timeBool && timeWeather >= 0 && _timeWeather > 0)
-                {
-                    double currentTime = Planetarium.GetUniversalTime();
-                    totalWeatherTime += (currentTime - _timeWeather);
-                    _timeWeather = currentTime;
-                }
-                calculateStatus(totalWeatherTime);
-            }
-            else if (vessel.atmDensity <= 0)
-            {
-                Fields["weatherPanelStatus"].guiActive = false;
-            }
-            else if (switchWeatherAffectWear == false)
-            {
-                wearFactorTVC = 1.0;
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName, currentPosition);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
-                calculateStatus();
-            }
-
-            //_sunAOA = totalSunExposure;
             if ((exposureStatus != ExposureState.Exposed) && (totalSunExposure < 0.01))
             {
                 exposureState = exposureStatus;
@@ -715,7 +716,11 @@ namespace WeatherDrivenSolarPanel
                 {
                     currentOutput = totalFlow * wearFactor * WeatherImpactFactor;
                     exposureState = ExposureState.Exposed;
-                    part.RequestResource("ElectricCharge", (-currentOutput) * TimeWarp.fixedDeltaTime);
+                    if (resourceName == null)
+                    {
+                        resourceName = "ElectricCharge";
+                    }
+                    part.RequestResource(resourceName, (-currentOutput) * TimeWarp.fixedDeltaTime);
                 }
             }
         }
@@ -1278,6 +1283,8 @@ namespace WeatherDrivenSolarPanel
                 panelModule.Fields["flowRate"].guiActive = false;
                 panelModule.Fields["status"].guiActive = false;
 
+                resourceName = panelModule.resourceName;
+
                 if (sunCatcherPivot == null)
                     sunCatcherPivot = panelModule.part.FindModelComponent<Transform>(panelModule.pivotName);
                 if (sunCatcherPosition == null)
@@ -1328,7 +1335,6 @@ namespace WeatherDrivenSolarPanel
                 if (sunCatcherPosition == null)
                     sunCatcherPosition = panelModule.part.FindModelTransform(panelModule.secondaryTransformName);
 
-                currentPosition = sunCatcherPosition.position + (sunDir * panelModule.raycastOffset);
                 Physics.Raycast(sunCatcherPosition.position + (sunDir * panelModule.raycastOffset), sunDir, out raycastHit, 10000f);
 
                 if (raycastHit.collider != null)
@@ -1949,3 +1955,4 @@ namespace WeatherDrivenSolarPanel
         #endregion
     }
 }
+#endif
