@@ -1,7 +1,7 @@
 # WeatherDrivenSolarPanel (WDSP)
 [English](https://github.com/Aebestach/WeatherDrivenSolarPanel/blob/master/README.md) | [简体中文](https://www.bilibili.com/read/cv31075491/)
 
-![Imgur](https://imgur.com/WoxMQ3K.jpg)
+![Imgur](https://i.imgur.com/WoxMQ3K.jpg)
 
 ## Introduce
 
@@ -24,9 +24,9 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 <br>(The default is for high performance computer users. In fact you can try to use the high performance *.dll* and if there is noticeable lag then use the low performance *.dll*).
 
 ## Preview Image & Video
-![Imgur](https://imgur.com/B9q2Rak.jpg)
-![Imgur](https://imgur.com/drHOD4A.jpg)
-![Imgur](https://imgur.com/oz1DLv0.jpg)
+![Imgur](https://i.imgur.com/B9q2Rak.jpg)
+![Imgur](https://i.imgur.com/drHOD4A.jpg)
+![Imgur](https://i.imgur.com/oz1DLv0.jpg)
 [YouTube](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2) 
 
 
@@ -44,8 +44,8 @@ Since the v5.0 update, the wear feature has been introduced. Once the wear reach
 * * *
 **Provides two graphs, one for time versus wear and one for weather versus wear.**
 
-![Imgur](https://imgur.com/vvyXzUw.png)
-![Imgur](https://imgur.com/YpfMMHJ.png)
+![Imgur](https://i.imgur.com/vvyXzUw.png)
+![Imgur](https://i.imgur.com/YpfMMHJ.png)
 
 ## Credits
 - Thank you so much to [R-T-B](https://github.com/R-T-B)  for all your help with WDSP.
