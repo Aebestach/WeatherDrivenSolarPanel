@@ -19,7 +19,7 @@ Since the v5.0 update, a new wear feature has been added to WDSP, see [**Others*
 
 ## Installation
 - The installation process is the same as other mods. Just put the WeatherDrivenSolarPanel folder from GameData into the GameData in the game root directory. 
-- If you use the Kerbalism version, please copy `Extras\KerbalismSupport\WeatherDrivenSolarPanel.dll` to `GameData\WeatherDrivenSolarPanel\Plugin` and replace it. Of course I also provide a weak CPU version for Kerbalism users.
+- If you use the Kerbalism version, please copy `Extras\KerbalismSupport\WeatherDrivenSolarPanel.dll` to `GameData\WeatherDrivenSolarPanel\Plugin` and replace it.
 
 ## Preview Image & Video
 ![Imgur](https://i.imgur.com/B9q2Rak.jpg)
