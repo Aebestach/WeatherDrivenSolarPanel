@@ -44,8 +44,8 @@ Since the v5.0 update, the wear feature has been introduced. Once the wear reach
 * * *
 **Provides two graphs, one for time versus wear and one for weather versus wear.**
 
-![Imgur](https://i.imgur.com/vvyXzUw.png)
-![Imgur](https://i.imgur.com/YpfMMHJ.png)
+![Imgur](https://imgur.com/2pyqZmO.png)
+![Imgur](https://imgur.com/7LH2wLB.png)
 
 ## Credits
 - Thank you so much to [R-T-B](https://github.com/R-T-B)  for all your help with WDSP.
