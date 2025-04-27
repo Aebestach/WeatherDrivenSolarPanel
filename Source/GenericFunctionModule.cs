@@ -11,7 +11,6 @@ namespace WDSP_GenericFunctionModule
         public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
         {
             layerName = null;
-            //int stepCount = 500;
             int stepCount = 50;
             float totalDensity = 0f;
             bool RSSflag;

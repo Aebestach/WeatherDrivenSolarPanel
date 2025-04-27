@@ -172,25 +172,27 @@ namespace WeatherDrivenSolarPanel
 
         { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
     };
-        string category;
-        //double _sunAOA;
 
         //Change the value of status of the solar panel.
         private double statusChangeValue = 1.0;
         private string layerName = null;
-        private double wearFactor = 1.0;
-        double WeatherImpactFactor = 1.0;
 
         [KSPField(isPersistant = true)]
+        private double wearFactor = 1.0;
+        [KSPField(isPersistant = true)]
+        double WeatherImpactFactor = 1.0;
+        [KSPField(isPersistant = true)]
         double totalWeatherTime = 0.0;
+        [KSPField(isPersistant = true)]
+        double timeTimer = 0.0;
         [KSPField(isPersistant = true)]
         private double wearFactorTVC = 1.0;
         [KSPField(isPersistant = true)]
         double timeWeather = -1.0;
         [KSPField(isPersistant = true)]
-        bool timeBool = false;
+        double startTime = -1.0;
         [KSPField(isPersistant = true)]
-        double _timeWeather = -1.0;
+        bool atmoFlag = false;
 
         bool switchTimeDecayWear;
         bool switchWeatherAffectWear;
@@ -264,20 +266,20 @@ namespace WeatherDrivenSolarPanel
         public override void OnStart(StartState startState)
         {
             LoadConfig();
-            timeEfficCurveNonRO.Add(0f, 1.0f, -0.0003521126f, -0.0003521126f);
-            timeEfficCurveNonRO.Add(426f, 0.85f, -0.0003638499f, -0.0003638499f);
-            timeEfficCurveNonRO.Add(639f, 0.77f, -0.0003521128f, -0.0003521128f);
-            timeEfficCurveNonRO.Add(852f, 0.7f, -0.0002582159f, -0.0002582159f);
-            timeEfficCurveNonRO.Add(1065f, 0.66f, -0.0004694836f, -0.0004694836f);
-            timeEfficCurveNonRO.Add(1278f, 0.5f, -0.0008450705f, -0.0008450705f);
-            timeEfficCurveNonRO.Add(1491f, 0.3f, -0.0006455399f, -0.0006455399f);
-            timeEfficCurveNonRO.Add(1917f, 0.15f, -0.000528169f, -0.000528169f);
-            timeEfficCurveNonRO.Add(2130f, 0f, -0.0007042254f, -0.0007042254f);
+            timeEfficCurveNonRO.Add(0f, 1.0f, -3.521126E-05f, -3.521126E-05f);
+            timeEfficCurveNonRO.Add(4260f, 0.85f, -3.638498E-05f, -3.638498E-05f);
+            timeEfficCurveNonRO.Add(6390f, 0.77f, -3.521128E-05f, -3.521128E-05f);
+            timeEfficCurveNonRO.Add(8520f, 0.7f, -2.582158E-05f, -2.582158E-05f);
+            timeEfficCurveNonRO.Add(10650f, 0.66f, -4.694836E-05f, -4.694836E-05f);
+            timeEfficCurveNonRO.Add(12780f, 0.5f, -8.450705E-05f, -8.450705E-05f);
+            timeEfficCurveNonRO.Add(14910f, 0.3f, -6.455398E-05f, -6.455398E-05f);
+            timeEfficCurveNonRO.Add(19170f, 0.15f, -5.28169E-05f, -5.28169E-05f);
+            timeEfficCurveNonRO.Add(21300f, 0f, -7.042254E-05f, -7.042254E-05f);
 
             weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
-            weatherTimeEfficCurve.Add(426f, 0.8f, -0.0007042254f, -0.0007042254f);
-            weatherTimeEfficCurve.Add(852f, 0.4f, -0.000528169f, -0.000528169f);
-            weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0002347418f, -0.0002347418f);
+            weatherTimeEfficCurve.Add(426f, 0.8f, -0.0005868545f, -0.0005868545f);
+            weatherTimeEfficCurve.Add(852f, 0.5f, -0.000528169f, -0.000528169f);
+            weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0003521127f, -0.0003521127f);
             weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
             weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
 
@@ -340,13 +342,6 @@ namespace WeatherDrivenSolarPanel
 
             }
 
-            if (HighLogic.LoadedSceneIsEditor || vessel.situation == Vessel.Situations.PRELAUNCH)
-            {
-                wearFactorTVC = 1.0;
-                totalWeatherTime = 0.0;
-                _timeWeather = -1.0;
-            }
-
             if (!prefabDefinesTimeEfficCurve)
                 timeEfficCurve = SolarPanel.GetTimeCurve();
 
@@ -387,21 +382,19 @@ namespace WeatherDrivenSolarPanel
                 Events["ManualTracking"].guiActive = false;
             }
 
-            // Update main status field visibility
-            if (state == PanelState.Failure || state == PanelState.Unknown)
-            {
-                Fields["panelStatusEnergy"].guiActive = false;
-                Fields["panelStatusSunAOA"].guiActive = false;
-                Fields["panelStatusWear"].guiActive = true;
-                panelStatusWear = "100 %".ToString();
-            }
             Fields["panelStatusEnergy"].guiActive = false;
             Fields["panelStatusSunAOA"].guiActive = false;
             Fields["weatherPanelStatus"].guiActive = false;
-            if (vessel.atmDensity > 0 && exposureState != ExposureState.Disabled)
+            // Update main status field visibility
+            if (state == PanelState.Failure || state == PanelState.Unknown)
+            {
+                panelStatusWear = "100 %".ToString();
+                wearFactor = 0.0;
+                Fields["panelStatusWear"].guiActive = true;
+            }
+            if (vessel.atmDensity > 0 && exposureState != ExposureState.Disabled && state!=PanelState.Failure)
             {
                 Fields["weatherPanelStatus"].guiActive = true;
-                //weatherPanelStatus = "<color=#FF7F00>" + WDSP_TVC_sunDirect + "</color>";
             }
             switch (exposureState)
             {
@@ -479,14 +472,57 @@ namespace WeatherDrivenSolarPanel
             }
 
             if (HighLogic.LoadedSceneIsFlight && vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH)
+            {
                 launchUT = Planetarium.GetUniversalTime();
+                startTime = launchUT;
+                if (vessel.atmDensity > 0)
+                {
+                    timeWeather = launchUT;
+                }
+            }
 
             // can't produce anything if not deployed, broken, etc
             PanelState newState = SolarPanel.GetState();
             if (state != newState)
             {
+                if (state == PanelState.Broken && newState == PanelState.Retracted)
+                {
+                    startTime = Planetarium.GetUniversalTime();
+                    if (vessel.atmDensity > 0)
+                    {
+                        timeWeather = Planetarium.GetUniversalTime();
+                    }
+                    wearFactor = 1.0;
+                    WeatherImpactFactor = 1.0;
+                    totalWeatherTime = 0.0;
+                    timeTimer = 0.0;
+                    wearFactorTVC = 1.0;
+                    
+                    panelStatusWear = "0 %".ToString();
+                    Fields["panelStatusWear"].guiActive = false;
+                }     
                 state = newState;
             }
+            
+            // Get the current time
+            if (state == PanelState.Extending)
+            {
+                startTime = Planetarium.GetUniversalTime();
+                if (vessel.atmDensity > 0 && switchWeatherAffectWear)
+                {
+                    timeWeather = Planetarium.GetUniversalTime();
+                }
+            }
+            if(atmoFlag==false && vessel.atmDensity > 0)
+            {
+                timeWeather = Planetarium.GetUniversalTime();
+                atmoFlag=true;
+            }
+            else if(vessel.atmDensity == 0)
+            {
+                atmoFlag = false;
+            }
+
             if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static))
             {
                 exposureState = ExposureState.Disabled;
@@ -611,28 +647,16 @@ namespace WeatherDrivenSolarPanel
                         WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
                         layerName = NlayerName;
                         statusChangeValue = WeatherImpactFactor;
-                        if (vessel != null && (vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.LANDED)
-                            && (GetCategoryByValue(layerName) != "cloudyAffect")
-                            && WeatherImpactFactor < 0.9f)
+                        if (vessel != null 
+                            && (GetCategoryByValue(layerName) != "cloudyAffect") 
+                            && WeatherImpactFactor < 0.9f 
+                            && (vessel.situation != Vessel.Situations.PRELAUNCH))
                         {
-                            if (timeWeather < 0)
+                            if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
                             {
+                                totalWeatherTime += Planetarium.GetUniversalTime() - timeWeather;
                                 timeWeather = Planetarium.GetUniversalTime();
-                                timeBool = true;
-                                _timeWeather = timeWeather;
                             }
-                        }
-                        else
-                        {
-                            timeBool = false;
-                            timeWeather = -1.0;
-                        }
-
-                        if (timeBool && timeWeather >= 0 && _timeWeather > 0)
-                        {
-                            double currentTime = Planetarium.GetUniversalTime();
-                            totalWeatherTime += (currentTime - _timeWeather);
-                            _timeWeather = currentTime;
                         }
                         calculateStatus(totalWeatherTime);
                     }
@@ -672,28 +696,35 @@ namespace WeatherDrivenSolarPanel
 
             // get wear factor (time based output degradation)
             wearFactorTime = 1.0;
-            if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
+            if ((vessel.situation != Vessel.Situations.PRELAUNCH) && switchTimeDecayWear)
             {
-                wearFactorTime = Clamp(timeEfficCurve.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 3600.0)), 0.0, 1.0);
-            }
-            else if (ROFlag == false && switchTimeDecayWear)
-            {
-                wearFactorTime = Clamp(timeEfficCurveNonRO.Evaluate((float)((Planetarium.GetUniversalTime() - launchUT) / 21600.0)), 0.0, 1.0);
-            }
+                if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
+                {
+                    timeTimer += Planetarium.GetUniversalTime() - startTime;
+                    startTime = Planetarium.GetUniversalTime();
+                }
 
+                if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
+                {
+                    wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0));
+                }
+                else if (ROFlag == false)
+                {
+                    wearFactorTime = timeEfficCurveNonRO.Evaluate((float)(timeTimer / 21600.0));
+                }
+            }
 
             // get final output rate in EC/s
             currentOutput = totalFlow;
-
             wearFactor = wearFactorTime * wearFactorTVC;
             double trackedSunVisiblefactor = IsBodyVisible(vessel, position, trackedSun, GetLargeBodies(position), out direction, out distance) ? 1.0 : 0.0;
-            if (wearFactor < 0.1)
+            if (wearFactor < 0.01)
             {
-                exposureState = ExposureState.Disabled;
-                state = PanelState.Failure;
                 Fields["weatherPanelStatus"].guiActive = false;
                 Fields["panelStatusEnergy"].guiActive = false;
                 Fields["panelStatusSunAOA"].guiActive = false;
+                exposureState = ExposureState.Disabled;
+                state = PanelState.Failure;
             }
             else
             {
@@ -1088,7 +1119,7 @@ namespace WeatherDrivenSolarPanel
                     if (statusChangeValue < 0.85f)
                     {
                         if (statusChangeValue < 0.25f)
-                            wearFactorTVC = Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_rainAffect + "</color>";
                     }
                     break;
@@ -1096,7 +1127,7 @@ namespace WeatherDrivenSolarPanel
                     if (statusChangeValue < 0.80f)
                     {
                         if (statusChangeValue < 0.65f)
-                            wearFactorTVC = Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
                     }
                     break;
@@ -1104,7 +1135,7 @@ namespace WeatherDrivenSolarPanel
                     if (statusChangeValue < 0.9f)
                     {
                         if (statusChangeValue < 0.25f)
-                            wearFactorTVC = Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
@@ -1112,7 +1143,7 @@ namespace WeatherDrivenSolarPanel
                     if (statusChangeValue < 0.90f)
                     {
                         if (statusChangeValue < 0.55f)
-                            wearFactorTVC = Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
+                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_volcanoesAffect + "</color>";
                     }
                     break;

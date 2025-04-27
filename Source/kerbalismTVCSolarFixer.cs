@@ -525,9 +525,9 @@ namespace WeatherDrivenSolarPanel
         {
             LoadConfig();
             FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
-            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(426f, 0.8f, -0.0007042254f, -0.0007042254f);
-            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(852f, 0.4f, -0.000528169f, -0.000528169f);
-            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0002347418f, -0.0002347418f);
+            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(426f, 0.8f, -0.0005868545f, -0.0005868545f);
+            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(852f, 0.5f, -0.000528169f, -0.000528169f);
+            FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0003521127f, -0.0003521127f);
             FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
             FixedUpdate_SolarFixer.weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
 
