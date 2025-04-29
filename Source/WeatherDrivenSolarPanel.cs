@@ -466,7 +466,8 @@ namespace WeatherDrivenSolarPanel
 
         public void FixedUpdate()
         {
-            if (SolarPanel == null)
+            // do nothing else in editor & panel==null
+            if (HighLogic.LoadedSceneIsEditor || SolarPanel == null)
             {
                 return;
             }
@@ -527,12 +528,6 @@ namespace WeatherDrivenSolarPanel
             {
                 exposureState = ExposureState.Disabled;
                 currentOutput = 0.0;
-                return;
-            }
-
-            // do nothing else in editor
-            if (HighLogic.LoadedSceneIsEditor)
-            {
                 return;
             }
 
