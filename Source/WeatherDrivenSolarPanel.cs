@@ -134,8 +134,7 @@ namespace WeatherDrivenSolarPanel
         public static string GetLocWDSP(string template) => Localizer.Format(prefix2 + template);
         private static string WDSP_TVC_cloudyAffect = GetLocWDSP("cloudyAffect");                                       // "Cloudy Weather"
         private static string WDSP_TVC_dustStormAffect = GetLocWDSP("dustStormAffect");                                 // "Sandstorm/Dust Storm"
-        private static string WDSP_TVC_rainAffect = GetLocWDSP("rainAffect");                                           // "Precipitation/Thunderstorm Weather"
-        private static string WDSP_TVC_snowAffect = GetLocWDSP("snowAffect");                                           // "Snow Weather"
+        private static string WDSP_TVC_precipitationAffect = GetLocWDSP("precipitationAffect");                         // "Precipitation/Thunderstorm Weather"
         private static string WDSP_TVC_volcanoesAffect = GetLocWDSP("volcanoesAffect");                                 // "Affected by volcanoes"
         private static string WDSP_TVC_sunDirect = GetLocWDSP("sunDirect");                                             // "Sunny"
 
@@ -159,16 +158,16 @@ namespace WeatherDrivenSolarPanel
                 "Noyreg-clouds2", "Anehta-clouds-underworld", "Anehta-clouds1",
                 "Anehta-clouds2", "Efil-clouds1", "Efil-clouds2", "Earth-clouds1", "Earth-clouds2", "Venus-clouds1",
             "Titan-clouds1","Mars-rare-cirrus","Eve-Clouds-Low","Eve-Clouds-High","Huygen-Clouds-Low","Kerbin-Clouds-Low","Kerbin-Clouds-High",
-        "Laythe-Clouds-Low","Lindor-Clouds-Underworld","Lindor-Clouds1","Lindor-Clouds2","Lindor-Clouds3"} },
+        "Laythe-Clouds-Low","Lindor-Clouds-Underworld","Lindor-Clouds1","Lindor-Clouds2","Lindor-Clouds3","Kerbin-base-layer",
+            "Kerbin-cumulonimbus-layer","Laythe-base-layer","Laythe-pyrocumulus-layer","Kerbin-Weather-1"} },
 
-        { "rainAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
+        { "precipitationAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
                 "Rouqea-Weather", "Suluco-Weather1", "Efil-Weather","Earth-Weather1","Earth-Weather2","Titan-Weather1","Eve-Weather-Heavy",
-        "Huygen-Weather","Kerbin-Weather-Heavy","Laythe-Weather"} },
+        "Huygen-Weather","Kerbin-Weather-Heavy","Laythe-Weather","Kerbin-weather-2","Laythe-Weather1", "Suluco-Snow", 
+            "Kerbin-Snow-1", "Kerbin-Snow-2", "Laythe-Weather-1","Laythe-weather-2"} },
 
         { "dustStormAffect", new HashSet<string> {  "Duna-duststorm-big", "Storms-Dust","Stable-Dust",
             "Mars-duststorm-big","Dust-Small","Dust-Large","Dust-Global","Tylo-Dust"} },
-
-        { "snowAffect", new HashSet<string> { "Laythe-Weather1", "Suluco-Snow", "Kerbin-Snow-1", "Kerbin-Snow-2"} },
 
         { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
     };
@@ -1069,22 +1068,16 @@ namespace WeatherDrivenSolarPanel
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
                     }
                     break;
-                case "rainAffect":
+                case "precipitationAffect":
                     if (statusChangeValue < 0.85f)
                     {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_rainAffect + "</color>";
+                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
                     }
                     break;
                 case "dustStormAffect":
                     if (statusChangeValue < 0.9f)
                     {
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "snowAffect":
-                    if (statusChangeValue < 0.9f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
                 case "volcanoesAffect":
@@ -1110,12 +1103,12 @@ namespace WeatherDrivenSolarPanel
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
                     }
                     break;
-                case "rainAffect":
+                case "precipitationAffect":
                     if (statusChangeValue < 0.85f)
                     {
                         if (statusChangeValue < 0.25f)
                             wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_rainAffect + "</color>";
+                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
                     }
                     break;
                 case "dustStormAffect":
@@ -1124,14 +1117,6 @@ namespace WeatherDrivenSolarPanel
                         if (statusChangeValue < 0.65f)
                             wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
                         weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "snowAffect":
-                    if (statusChangeValue < 0.9f)
-                    {
-                        if (statusChangeValue < 0.25f)
-                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
                 case "volcanoesAffect":
