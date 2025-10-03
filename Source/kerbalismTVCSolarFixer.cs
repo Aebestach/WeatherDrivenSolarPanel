@@ -31,13 +31,12 @@ namespace WeatherDrivenSolarPanel
         public static string GetLocWDSP(string template) => Localizer.Format(prefix2 + template);
         public static string WDSP_TVC_cloudyAffect = GetLocWDSP("cloudyAffect");                                       // "Cloudy Weather"
         public static string WDSP_TVC_dustStormAffect = GetLocWDSP("dustStormAffect");                                 // "Sandstorm/Dust Storm"
-        public static string WDSP_TVC_rainAffect = GetLocWDSP("rainAffect");                                           // "Precipitation/Thunderstorm Weather"
-        public static string WDSP_TVC_snowAffect = GetLocWDSP("snowAffect");                                           // "Snow Weather"
+        public static string WDSP_TVC_precipitationAffect = GetLocWDSP("precipitationAffect");                         // "Precipitation/Thunderstorm Weather"
         public static string WDSP_TVC_volcanoesAffect = GetLocWDSP("volcanoesAffect");                                 // "Affected by volcanoes"
         public static string WDSP_TVC_sunDirect = GetLocWDSP("sunDirect");                                             // "Sunny"
-        public static string WDSP_TVC_weatherStatus = GetLocWDSP("weatherStatus");                                    // "Sunny"
+        public static string WDSP_TVC_weatherStatus = GetLocWDSP("weatherStatus");                                     // "Weather Status"
         // Define and initialize the cloud dictionary
-        public static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>
+        static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>
     {
         { "cloudyAffect", new HashSet<string> { "Kerbin-clouds1", "Kerbin-clouds2", "Eve-clouds1", "Eve-clouds2",
                 "Jool-clouds-underworld", "Jool-clouds0", "Jool-clouds1", "Jool-clouds2",
@@ -47,16 +46,16 @@ namespace WeatherDrivenSolarPanel
                 "Noyreg-clouds2", "Anehta-clouds-underworld", "Anehta-clouds1",
                 "Anehta-clouds2", "Efil-clouds1", "Efil-clouds2", "Earth-clouds1", "Earth-clouds2", "Venus-clouds1",
             "Titan-clouds1","Mars-rare-cirrus","Eve-Clouds-Low","Eve-Clouds-High","Huygen-Clouds-Low","Kerbin-Clouds-Low","Kerbin-Clouds-High",
-        "Laythe-Clouds-Low","Lindor-Clouds-Underworld","Lindor-Clouds1","Lindor-Clouds2","Lindor-Clouds3"} },
+        "Laythe-Clouds-Low","Lindor-Clouds-Underworld","Lindor-Clouds1","Lindor-Clouds2","Lindor-Clouds3","Kerbin-base-layer",
+            "Kerbin-cumulonimbus-layer","Laythe-base-layer","Laythe-pyrocumulus-layer","Kerbin-Weather-1"} },
 
-        { "rainAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
+        { "precipitationAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
                 "Rouqea-Weather", "Suluco-Weather1", "Efil-Weather","Earth-Weather1","Earth-Weather2","Titan-Weather1","Eve-Weather-Heavy",
-        "Huygen-Weather","Kerbin-Weather-Heavy","Laythe-Weather"} },
+        "Huygen-Weather","Kerbin-Weather-Heavy","Laythe-Weather","Kerbin-weather-2","Laythe-Weather1", "Suluco-Snow", 
+            "Kerbin-Snow-1", "Kerbin-Snow-2", "Laythe-Weather-1","Laythe-weather-2"} },
 
         { "dustStormAffect", new HashSet<string> {  "Duna-duststorm-big", "Storms-Dust","Stable-Dust",
             "Mars-duststorm-big","Dust-Small","Dust-Large","Dust-Global","Tylo-Dust"} },
-
-        { "snowAffect", new HashSet<string> { "Laythe-Weather1", "Suluco-Snow", "Kerbin-Snow-1", "Kerbin-Snow-2"} },
 
         { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
     };
@@ -305,22 +304,16 @@ namespace WeatherDrivenSolarPanel
                         return "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
                     }
                     break;
-                case "rainAffect":
+                case "precipitationAffect":
                     if (statusChangeValue < 0.8f)
                     {
-                        return "<color=#5F9F9F>" + WDSP_TVC_rainAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
                     }
                     break;
                 case "dustStormAffect":
                     if (statusChangeValue < 0.8f)
                     {
                         return "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "snowAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        return "<color=#5F9F9F>" + WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
                 case "volcanoesAffect":
@@ -345,12 +338,12 @@ namespace WeatherDrivenSolarPanel
                         return "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
                     }
                     break;
-                case "rainAffect":
+                case "precipitationAffect":
                     if (statusChangeValue < 0.8f)
                     {
                         if (statusChangeValue < 0.45f)
                             wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
-                        return "<color=#5F9F9F>" + WDSP_TVC_rainAffect + "</color>";
+                        return "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
                     }
                     break;
                 case "dustStormAffect":
@@ -359,14 +352,6 @@ namespace WeatherDrivenSolarPanel
                         if (statusChangeValue < 0.75f)
                             wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
                         return "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "snowAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        if (statusChangeValue < 0.45f)
-                            wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
-                        return "<color=#5F9F9F>" + WDSP_TVC_snowAffect + "</color>";
                     }
                     break;
                 case "volcanoesAffect":

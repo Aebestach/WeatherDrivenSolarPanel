@@ -51,7 +51,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\..\Games\KSP\1.12.5 Stock\GameData\000_Harmony\0Harmony.dll</HintPath>
+      <HintPath>..\..\..\..\Games\KSP\1.12.5 Kcalbeloh\GameData\000_Harmony\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
@@ -75,8 +75,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="Kopernicus">
-      <HintPath>..\..\..\..\Games\KSP\1.12.5 Stock\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\Games\KSP\1.12.5 OnlyKcalbeloh\GameData\Kopernicus\Plugins\Kopernicus.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -118,7 +117,7 @@
   </ItemGroup>
   <ItemGroup>
     <Publicize Include="Kerbalism112" />
-</ItemGroup>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
