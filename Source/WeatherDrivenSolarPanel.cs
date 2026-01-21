@@ -45,7 +45,7 @@ namespace WeatherDrivenSolarPanel
 
         /// <summary>has the player manually selected the star to be tracked ?</summary>
         [KSPField(isPersistant = true)]
-        private bool manualTracking = false;
+        public bool manualTracking = false;
 
         /// <summary>
 		/// Time based output degradation curve. Keys in hours, values in [0;1] range.
@@ -56,10 +56,6 @@ namespace WeatherDrivenSolarPanel
         public FloatCurve timeEfficCurve;
         private static FloatCurve teCurve = null;
         private bool prefabDefinesTimeEfficCurve = false;
-
-        /// <summary>UT of part creation in flight, used to evaluate the timeEfficCurve</summary>
-        [KSPField(isPersistant = true)]
-        public double launchUT = -1.0;
 
         /// <summary>internal object for handling the various hacks depending on the target solar panel module</summary>
         public SupportedPanel SolarPanel { get; private set; }
@@ -77,14 +73,11 @@ namespace WeatherDrivenSolarPanel
         // The following fields are local to FixedUpdate() but are shared for status string updates in Update()
         // Their value can be inconsistent, don't rely on them for anything else
         private double exposureFactor;
-        [KSPField(isPersistant = true)]
-        private double wearFactorTime;
         private ExposureState exposureState;
         private string mainOccludingPart;
         private string rateFormat;
         private static StringBuilder sb = new StringBuilder(256);
         private ExposureState exposureStatus;
-
 
         public enum PanelState
         {
@@ -103,30 +96,32 @@ namespace WeatherDrivenSolarPanel
         {
             Disabled,
             Exposed,
-            NotVisible,
+            InShadow,
+            OccludedTerrain,
             OccludedPart,
-            BadOrientation
+            BadOrientation,
+            Eclipse
         }
 
         private const string prefix1 = "#Kopernicus_";
         public static string GetLoc(string template) => Localizer.Format(prefix1 + template);
-        private static string SolarPanelFixer_occludedby = GetLoc("SolarPanelFixer_occludedby");                        // "occluded by <<1>>"
-        private static string SolarPanelFixer_notvisible = GetLoc("SolarPanelFixer_notvisible");                        // "Not Visible"
-        private static string SolarPanelFixer_badorientation = GetLoc("SolarPanelFixer_badorientation");                // "bad orientation"
-        private static string SolarPanelFixer_exposure = GetLoc("SolarPanelFixer_exposure");                            // "exposure"
-        private static string SolarPanelFixer_wear = GetLoc("SolarPanelFixer_wear");                                    // "wear"
+        private static string SolarPanelFixer_occludedby = GetLoc("SolarPanelFixer_occludedby");                        // "Occluded By <<1>>"
+        private static string SolarPanelFixer_inshadow = GetLoc("SolarPanelFixer_inshadow");                            // "In Shadow"
+        private static string SolarPanelFixer_occludedbyenvironment = GetLoc("SolarPanelFixer_occludedbyenvironment");  // "Occluded By Environment"
+        private static string SolarPanelFixer_eclipse = GetLoc("SolarPanelFixer_eclipse");                              // "Astronomical Eclipse"
+        private static string SolarPanelFixer_badorientation = GetLoc("SolarPanelFixer_badorientation");                // "Bad Orientation"
         private static string SolarPanelFixer_sunDirect = GetLoc("SolarPanelFixer_sunDirect");                          // "Sun Direct"
-        private static string SolarPanelFixer_Selecttrackedstar = GetLoc("SolarPanelFixer_Selecttrackedstar");          // "Select tracked star"
+        private static string SolarPanelFixer_Selecttrackedstar = GetLoc("SolarPanelFixer_Selecttrackedstar");          // "Select Tracked Star"
         private static string SolarPanelFixer_SelectTrackingBody = GetLoc("SolarPanelFixer_SelectTrackingBody");        // "Select Tracking Body"
         private static string SolarPanelFixer_SelectTrackedstar_msg = GetLoc("SolarPanelFixer_SelectTrackedstar_msg");  // "Select the star you want to track with this solar panel."
         private static string SolarPanelFixer_Automatic = GetLoc("SolarPanelFixer_Automatic");                          // "Automatic"
-        private static string SolarPanelFixer_retracted = GetLoc("SolarPanelFixer_retracted");                          // "retracted"
-        private static string SolarPanelFixer_extending = GetLoc("SolarPanelFixer_extending");                          // "extending"
-        private static string SolarPanelFixer_retracting = GetLoc("SolarPanelFixer_retracting");                        // "retracting"
-        private static string SolarPanelFixer_broken = GetLoc("SolarPanelFixer_broken");                                // "broken"
-        private static string SolarPanelFixer_failure = GetLoc("SolarPanelFixer_failure");                              // "failure"
-        private static string SolarPanelFixer_invalidstate = GetLoc("SolarPanelFixer_invalidstate");                    // "invalid state"
-        private static string SolarPanelFixer_Trackedstar = GetLoc("SolarPanelFixer_Trackedstar");                      // "Tracked star"
+        private static string SolarPanelFixer_retracted = GetLoc("SolarPanelFixer_retracted");                          // "Retracted"
+        private static string SolarPanelFixer_extending = GetLoc("SolarPanelFixer_extending");                          // "Extending"
+        private static string SolarPanelFixer_retracting = GetLoc("SolarPanelFixer_retracting");                        // "Retracting"
+        private static string SolarPanelFixer_broken = GetLoc("SolarPanelFixer_broken");                                // "Broken"
+        private static string SolarPanelFixer_failure = GetLoc("SolarPanelFixer_failure");                              // "Failure"
+        private static string SolarPanelFixer_invalidstate = GetLoc("SolarPanelFixer_invalidstate");                    // "Invalid State"
+        private static string SolarPanelFixer_Trackedstar = GetLoc("SolarPanelFixer_Trackedstar");                      // "Tracked Star"
         private static string SolarPanelFixer_AutoTrack = GetLoc("SolarPanelFixer_AutoTrack");                          // "[Auto] : "
 
 
@@ -146,52 +141,86 @@ namespace WeatherDrivenSolarPanel
         private static readonly FloatCurve AtmosphericAttenutationSolarAngleMultiplier = new FloatCurve();
         private static readonly FloatCurve timeEfficCurveNonRO = new FloatCurve();
         private static readonly FloatCurve weatherTimeEfficCurve = new FloatCurve();
+        private static int occlusionLayerMask = ~(1 << 10);
 
         // Define and initialize the cloud dictionary
-        static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>
-    {
-        { "cloudyAffect", new HashSet<string> { "Kerbin-clouds1", "Kerbin-clouds2", "Eve-clouds1", "Eve-clouds2",
-                "Jool-clouds-underworld", "Jool-clouds0", "Jool-clouds1", "Jool-clouds2",
-                "Laythe-clouds1", "Duna-rare-cirrus", "TemperateCumulus",
-                "TemperateAltoStratus", "Cirrus", "Rouqea-clouds1", "Rouqea-clouds2",
-                "Suluco-MainClouds", "Suluco-HighClouds", "Noyreg-clouds1",
-                "Noyreg-clouds2", "Anehta-clouds-underworld", "Anehta-clouds1",
-                "Anehta-clouds2", "Efil-clouds1", "Efil-clouds2", "Earth-clouds1", "Earth-clouds2", "Venus-clouds1",
-            "Titan-clouds1","Mars-rare-cirrus","Eve-Clouds-Low","Eve-Clouds-High","Huygen-Clouds-Low","Kerbin-Clouds-Low","Kerbin-Clouds-High",
-        "Laythe-Clouds-Low","Lindor-Clouds-Underworld","Lindor-Clouds1","Lindor-Clouds2","Lindor-Clouds3","Kerbin-base-layer",
-            "Kerbin-cumulonimbus-layer","Laythe-base-layer","Laythe-pyrocumulus-layer","Kerbin-Weather-1"} },
+        static Dictionary<string, HashSet<string>> categoryDictionary = new Dictionary<string, HashSet<string>>();
 
-        { "precipitationAffect", new HashSet<string> { "Kerbin-Weather1", "Kerbin-Weather2", "TemperateWeather",
-                "Rouqea-Weather", "Suluco-Weather1", "Efil-Weather","Earth-Weather1","Earth-Weather2","Titan-Weather1","Eve-Weather-Heavy",
-        "Huygen-Weather","Kerbin-Weather-Heavy","Laythe-Weather","Kerbin-weather-2","Laythe-Weather1", "Suluco-Snow", 
-            "Kerbin-Snow-1", "Kerbin-Snow-2", "Laythe-Weather-1","Laythe-weather-2"} },
+        private static Dictionary<string, string> _layerToCategoryMap;
+        private static bool _categoryConfigLoaded = false;
+        private List<CelestialBody> _occludingBodiesCache = new List<CelestialBody>();
+        private List<KopernicusStar> _starListCache = new List<KopernicusStar>();
+        private static bool _curvesInitialized = false;
 
-        { "dustStormAffect", new HashSet<string> {  "Duna-duststorm-big", "Storms-Dust","Stable-Dust",
-            "Mars-duststorm-big","Dust-Small","Dust-Large","Dust-Global","Tylo-Dust"} },
+        private static void EnsureCategoryConfig()
+        {
+            if (_categoryConfigLoaded) return;
 
-        { "volcanoesAffect",new HashSet<string> { "Laythe-HighAlt-Volcanoes"} }
-    };
+            LoadCategoryConfig();
+            _layerToCategoryMap = new Dictionary<string, string>();
+            foreach (var kvp in categoryDictionary)
+            {
+                foreach (var val in kvp.Value)
+                {
+                    if (!_layerToCategoryMap.ContainsKey(val))
+                    {
+                        _layerToCategoryMap.Add(val, kvp.Key);
+                    }
+                }
+            }
+
+            _categoryConfigLoaded = true;
+        }
+
+        private static void LoadCategoryConfig()
+        {
+            ConfigNode node = GameDatabase.Instance.GetConfigNodes("WDSP_CONFIG").FirstOrDefault();
+            if (node != null)
+            {
+                ConfigNode categories = node.GetNode("WEATHER_CATEGORIES");
+                if (categories != null)
+                {
+                    foreach (ConfigNode.Value value in categories.values)
+                    {
+                        if (!categoryDictionary.ContainsKey(value.name))
+                        {
+                            categoryDictionary[value.name] = new HashSet<string>();
+                        }
+
+                        string[] layers = value.value.Split(',');
+                        foreach (string layer in layers)
+                        {
+                            string trimmed = layer.Trim();
+                            if (!string.IsNullOrEmpty(trimmed))
+                            {
+                                categoryDictionary[value.name].Add(trimmed);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         //Change the value of status of the solar panel.
         private double statusChangeValue = 1.0;
         private string layerName = null;
 
         [KSPField(isPersistant = true)]
+        public double totalWeatherTime = 0.0;
+        [KSPField(isPersistant = true)]
+        public double wearFactorTVC = 1.0;
+        [KSPField(isPersistant = true)]
+        public double timeTimer = 0.0;
+        [KSPField(isPersistant = true)]
+        public double timeWeather = -1.0;
+        [KSPField(isPersistant = true)]
+        public double startTime = -1.0;
+
+
         private double wearFactor = 1.0;
-        [KSPField(isPersistant = true)]
         double WeatherImpactFactor = 1.0;
-        [KSPField(isPersistant = true)]
-        double totalWeatherTime = 0.0;
-        [KSPField(isPersistant = true)]
-        double timeTimer = 0.0;
-        [KSPField(isPersistant = true)]
-        private double wearFactorTVC = 1.0;
-        [KSPField(isPersistant = true)]
-        double timeWeather = -1.0;
-        [KSPField(isPersistant = true)]
-        double startTime = -1.0;
-        [KSPField(isPersistant = true)]
-        bool atmoFlag = false;
+        private double wearFactorTime;
+
 
         bool switchTimeDecayWear;
         bool switchWeatherAffectWear;
@@ -201,7 +230,7 @@ namespace WeatherDrivenSolarPanel
 
         #region KSP/Unity methods + background update
 
-        [KSPEvent(active = true, guiActive = true, guiName = "#Kopernicus_SolarPanelFixer_Selecttrackedstar")]//Select tracked star
+        [KSPEvent(active = true, guiActive = true, guiName = "#Kopernicus_SolarPanelFixer_Selecttrackedstar")]//Select Tracked Star
         public void ManualTracking()
         {
             KopernicusStar[] orderedStars = KopernicusStar.Stars
@@ -225,7 +254,7 @@ namespace WeatherDrivenSolarPanel
             PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new MultiOptionDialog(
                 SolarPanelFixer_SelectTrackingBody,//"Select Tracking Body"
                 SolarPanelFixer_SelectTrackedstar_msg,//"Select the star you want to track with this solar panel."
-                SolarPanelFixer_Selecttrackedstar,//"Select tracked star"
+                SolarPanelFixer_Selecttrackedstar,//"Select Tracked Star"
                 UISkinManager.GetSkin("MainMenuSkin"),
                 options), false, UISkinManager.GetSkin("MainMenuSkin"));
         }
@@ -265,57 +294,8 @@ namespace WeatherDrivenSolarPanel
         public override void OnStart(StartState startState)
         {
             LoadConfig();
-            timeEfficCurveNonRO.Add(0f, 1.0f, -3.521126E-05f, -3.521126E-05f);
-            timeEfficCurveNonRO.Add(4260f, 0.85f, -3.638498E-05f, -3.638498E-05f);
-            timeEfficCurveNonRO.Add(6390f, 0.77f, -3.521128E-05f, -3.521128E-05f);
-            timeEfficCurveNonRO.Add(8520f, 0.7f, -2.582158E-05f, -2.582158E-05f);
-            timeEfficCurveNonRO.Add(10650f, 0.66f, -4.694836E-05f, -4.694836E-05f);
-            timeEfficCurveNonRO.Add(12780f, 0.5f, -8.450705E-05f, -8.450705E-05f);
-            timeEfficCurveNonRO.Add(14910f, 0.3f, -6.455398E-05f, -6.455398E-05f);
-            timeEfficCurveNonRO.Add(19170f, 0.15f, -5.28169E-05f, -5.28169E-05f);
-            timeEfficCurveNonRO.Add(21300f, 0f, -7.042254E-05f, -7.042254E-05f);
-
-            weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
-            weatherTimeEfficCurve.Add(426f, 0.8f, -0.0005868545f, -0.0005868545f);
-            weatherTimeEfficCurve.Add(852f, 0.5f, -0.000528169f, -0.000528169f);
-            weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0003521127f, -0.0003521127f);
-            weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
-            weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
-
-            temperatureEfficCurve.Add(4f, 1.2f, 0.0f, -0.0006f);
-            temperatureEfficCurve.Add(300f, 1f, -0.0008f, -0.0008f);
-            temperatureEfficCurve.Add(1200f, 0.134f, -0.00035f, -0.00035f);
-            temperatureEfficCurve.Add(1900f, 0.02f, -3.72E-05f, -3.72E-05f);
-            temperatureEfficCurve.Add(2500f, 0.01f, 0.0f, 0.0f);
-
-            AtmosphericAttenutationAirMassMultiplier.Add(0f, 1f, 0f, 0f);
-            AtmosphericAttenutationAirMassMultiplier.Add(5f, 0.982f, -0.010f, -0.010f);
-            AtmosphericAttenutationAirMassMultiplier.Add(10f, 0.891f, -0.032f, -0.032f);
-            AtmosphericAttenutationAirMassMultiplier.Add(15f, 0.746f, -0.025f, -0.025f);
-            AtmosphericAttenutationAirMassMultiplier.Add(20f, 0.657f, -0.014f, -0.014f);
-            AtmosphericAttenutationAirMassMultiplier.Add(30f, 0.550f, -0.0081f, -0.0081f);
-            AtmosphericAttenutationAirMassMultiplier.Add(40f, 0.484f, -0.0053f, -0.0053f);
-            AtmosphericAttenutationAirMassMultiplier.Add(50f, 0.439f, -0.0039f, -0.0039f);
-            AtmosphericAttenutationAirMassMultiplier.Add(60f, 0.405f, -0.0030f, -0.0030f);
-            AtmosphericAttenutationAirMassMultiplier.Add(80f, 0.357f, -0.0020f, -0.0020f);
-            AtmosphericAttenutationAirMassMultiplier.Add(100f, 0.324f, -0.0014f, -0.0014f);
-            AtmosphericAttenutationAirMassMultiplier.Add(150f, 0.271f, -0.00079f, -0.00079f);
-            AtmosphericAttenutationAirMassMultiplier.Add(200f, 0.239f, -0.00052f, -0.00052f);
-            AtmosphericAttenutationAirMassMultiplier.Add(300f, 0.200f, -0.00029f, -0.00029f);
-            AtmosphericAttenutationAirMassMultiplier.Add(500f, 0.159f, -0.00014f, -0.00014f);
-            AtmosphericAttenutationAirMassMultiplier.Add(800f, 0.130f, -0.00007f, -0.00007f);
-            AtmosphericAttenutationAirMassMultiplier.Add(1200f, 0.108f, -0.00004f, 0f);
-
-            AtmosphericAttenutationSolarAngleMultiplier.Add(0f, 1f, 0f, 0f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(15f, 0.985f, -0.0020f, -0.0020f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(30f, 0.940f, -0.0041f, -0.0041f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(45f, 0.862f, -0.0064f, -0.0064f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(60f, 0.746f, -0.0092f, -0.0092f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(75f, 0.579f, -0.0134f, -0.0134f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(90f, 0.336f, -0.0185f, -0.0185f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(105f, 0.100f, -0.008f, -0.008f);
-            AtmosphericAttenutationSolarAngleMultiplier.Add(120f, 0.050f, 0f, 0f);
-
+            InitCurves();
+            
             // don't break tutorial scenarios
             // TODO : does this actually work ?
             if (DisableScenario(this)) return;
@@ -344,9 +324,6 @@ namespace WeatherDrivenSolarPanel
             if (!prefabDefinesTimeEfficCurve)
                 timeEfficCurve = SolarPanel.GetTimeCurve();
 
-            if (HighLogic.LoadedSceneIsFlight && launchUT < 0.0)
-                launchUT = Planetarium.GetUniversalTime();
-
             // setup star selection GUI
             Events["ManualTracking"].active = KopernicusStar.Stars.Count > 1 && SolarPanel.IsTracking;
             Events["ManualTracking"].guiActive = state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static;
@@ -357,6 +334,17 @@ namespace WeatherDrivenSolarPanel
             // set how many decimal points are needed to show the panel Ec output in the UI
             rateFormat = "F3";
 
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
+                {
+                    timeWeather = Planetarium.GetUniversalTime();
+                }
+                else
+                {
+                    timeWeather = -1.0;
+                }
+            }
         }
 
         public void Update()
@@ -397,24 +385,30 @@ namespace WeatherDrivenSolarPanel
             }
             switch (exposureState)
             {
-                case ExposureState.NotVisible:
-                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_notvisible + "</color>";//not visible
+                case ExposureState.InShadow:
+                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_inshadow + "</color>";//In Shadow
+                    break;
+                case ExposureState.OccludedTerrain:
+                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_occludedbyenvironment + "</color>";//Occluded By Environment
                     break;
                 case ExposureState.OccludedPart:
-                    panelStatus = BuildString("<color=#ff2222>", Localizer.Format(SolarPanelFixer_occludedby, mainOccludingPart), "</color>");//occluded by 
+                    panelStatus = BuildString("<color=#ff2222>", Localizer.Format(SolarPanelFixer_occludedby, mainOccludingPart), "</color>");//Occluded By 
                     break;
                 case ExposureState.BadOrientation:
-                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_badorientation + "</color>";//bad orientation
+                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_badorientation + "</color>";//Bad Orientation
+                    break;
+                case ExposureState.Eclipse:
+                    panelStatus = "<color=#ff2222>" + SolarPanelFixer_eclipse + "</color>";//Astronomical Eclipse
                     break;
                 case ExposureState.Disabled:
                     switch (state)
                     {
-                        case PanelState.Retracted: panelStatus = SolarPanelFixer_retracted; break;//"retracted"
-                        case PanelState.Extending: panelStatus = SolarPanelFixer_extending; break;//"extending"
-                        case PanelState.Retracting: panelStatus = SolarPanelFixer_retracting; break;//"retracting"
-                        case PanelState.Broken: panelStatus = SolarPanelFixer_broken; break;//"broken"
-                        case PanelState.Failure: panelStatus = SolarPanelFixer_failure; break;//"failure"
-                        case PanelState.Unknown: panelStatus = SolarPanelFixer_invalidstate; break;//"invalid state"
+                        case PanelState.Retracted: panelStatus = SolarPanelFixer_retracted; break;//"Retracted"
+                        case PanelState.Extending: panelStatus = SolarPanelFixer_extending; break;//"Extending"
+                        case PanelState.Retracting: panelStatus = SolarPanelFixer_retracting; break;//"Retracting"
+                        case PanelState.Broken: panelStatus = SolarPanelFixer_broken; break;//"Broken"
+                        case PanelState.Failure: panelStatus = SolarPanelFixer_failure; break;//"Failure"
+                        case PanelState.Unknown: panelStatus = SolarPanelFixer_invalidstate; break;//"Invalid State"
                     }
                     break;
                 case ExposureState.Exposed:
@@ -471,14 +465,22 @@ namespace WeatherDrivenSolarPanel
                 return;
             }
 
+            double universeTime = Planetarium.GetUniversalTime();
+
             if (HighLogic.LoadedSceneIsFlight && vessel != null && vessel.situation == Vessel.Situations.PRELAUNCH)
             {
-                launchUT = Planetarium.GetUniversalTime();
-                startTime = launchUT;
-                if (vessel.atmDensity > 0)
+                startTime = universeTime;
+                if (vessel != null && vessel.atmDensity > 0 && switchWeatherAffectWear)
                 {
-                    timeWeather = launchUT;
+                    timeWeather = universeTime;
                 }
+                wearFactor = 1.0;
+                totalWeatherTime = 0.0;
+                timeTimer = 0.0;
+                wearFactorTVC = 1.0;
+
+                panelStatusWear = "0 %";
+                Fields["panelStatusWear"].guiActive = false;
             }
 
             // can't produce anything if not deployed, broken, etc
@@ -487,77 +489,109 @@ namespace WeatherDrivenSolarPanel
             {
                 if (state == PanelState.Broken && newState == PanelState.Retracted)
                 {
-                    startTime = Planetarium.GetUniversalTime();
-                    if (vessel.atmDensity > 0)
+                    startTime = universeTime;
+                    if (vessel != null && vessel.atmDensity > 0 && switchWeatherAffectWear)
                     {
-                        timeWeather = Planetarium.GetUniversalTime();
+                        timeWeather = universeTime;
                     }
                     wearFactor = 1.0;
-                    WeatherImpactFactor = 1.0;
                     totalWeatherTime = 0.0;
                     timeTimer = 0.0;
                     wearFactorTVC = 1.0;
                     
-                    panelStatusWear = "0 %".ToString();
+                    panelStatusWear = "0 %";
                     Fields["panelStatusWear"].guiActive = false;
                 }     
                 state = newState;
-            }
-            
-            // Get the current time
-            if (state == PanelState.Extending)
-            {
-                startTime = Planetarium.GetUniversalTime();
-                if (vessel.atmDensity > 0 && switchWeatherAffectWear)
+
+
+                if (newState == PanelState.Extended || newState == PanelState.ExtendedFixed || newState == PanelState.Static)
                 {
-                    timeWeather = Planetarium.GetUniversalTime();
+                    startTime = universeTime;
+                    timeWeather = universeTime;
+                }
+                else
+                {
+                    startTime = -1.0;
+                    timeWeather = -1.0;
                 }
             }
-            if(atmoFlag==false && vessel.atmDensity > 0)
+
+            // Get the current time
+            if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
             {
-                timeWeather = Planetarium.GetUniversalTime();
-                atmoFlag=true;
-            }
-            else if(vessel.atmDensity == 0)
-            {
-                atmoFlag = false;
+                if (startTime < 0)
+                    startTime = universeTime;
+                if (vessel != null && vessel.atmDensity > 0 && switchWeatherAffectWear)
+                {
+                    if (timeWeather < 0)
+                        timeWeather = universeTime;
+                }
             }
 
             if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static))
             {
+                wearFactor = 1.0;
+                if ((vessel.situation != Vessel.Situations.PRELAUNCH) && switchTimeDecayWear)
+                {
+                    if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
+                    {
+                        wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0));
+                    }
+                    else if (ROFlag == false)
+                    {
+                        wearFactorTime = timeEfficCurveNonRO.Evaluate((float)(timeTimer / 21600.0));
+                    }
+                }
+                if(switchWeatherAffectWear)
+                {
+                    calculateStatus(totalWeatherTime);
+                }
+
+                if (switchTimeDecayWear && switchWeatherAffectWear)
+                {
+                    wearFactor = wearFactorTime * wearFactorTVC;
+                }else if (switchTimeDecayWear)
+                {
+                    wearFactor = wearFactorTime;
+                }else if(switchWeatherAffectWear)
+                {
+                    wearFactor = wearFactorTVC;
+                }
+
                 exposureState = ExposureState.Disabled;
                 currentOutput = 0.0;
+                timeWeather = -1.0;
                 return;
             }
 
             Vessel vesselActive = FlightGlobals.ActiveVessel;
             Vector3d position = VesselPosition(vesselActive);
-            List<KopernicusStar> starList = new List<KopernicusStar>();
+            
+            // Reusing cached list
+            _starListCache.Clear();
 
             Vector3d direction;
             double distance;
             WeatherImpactFactor = 1.0;
+            
+            GetLargeBodiesNonAlloc(position, _occludingBodiesCache);
+
             for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
             {
                 KopernicusStar starL = KopernicusStar.Stars[s];
-                Vector3d dIRECTION = (starL.sun.position - position).normalized;
-                /*double Block=SolarPanel.GetOccludedFactor(dIRECTION,out trackedPart);
-                double Cosine=SolarPanel.GetCosineFactor(dIRECTION);*/
-                double factor = IsBodyVisible(vessel, position, starL.sun, GetLargeBodies(position), out direction, out distance) ? 1.0 : 0.0;
-                //if (Cosine * Block == 0)
-                if (factor == 0.0)
+                // Optimization: Skip normalized calculation if not needed for the check
+                // Vector3d dIRECTION = (starL.sun.position - position).normalized; 
+                
+                if (IsBodyVisible(vessel, position, starL.sun, _occludingBodiesCache, out direction, out distance))
                 {
-                    continue;
-                }
-                else
-                {
-                    starList.Add(starL);
+                    _starListCache.Add(starL);
                 }
             }
 
-            if (starList.Count > 0)
+            if (_starListCache.Count > 0)
             {
-                KopernicusStar brightestStar = KopernicusStar.GetBrightest(position, starList);
+                KopernicusStar brightestStar = KopernicusStar.GetBrightest(position, _starListCache);
                 if (!manualTracking && trackedSun != brightestStar.sun)
                 {
                     trackedSunIndex = brightestStar.sun.flightGlobalsIndex;
@@ -567,12 +601,24 @@ namespace WeatherDrivenSolarPanel
             }
             else
             {
-                KopernicusStar[] orderedStars = KopernicusStar.Stars
-                    .OrderBy(s => Vector3.Distance(vessel.transform.position, s.sun.position)).ToArray();
-                if (!manualTracking && trackedSun != orderedStars[0].sun)
+                // Optimization: Find closest star without sorting everything
+                KopernicusStar closestStar = null;
+                double closestDistSqr = double.MaxValue;
+                
+                for (int i = 0; i < KopernicusStar.Stars.Count; i++)
                 {
-                    trackedSunIndex = orderedStars[0].sun.flightGlobalsIndex;
-                    trackedSun = orderedStars[0].sun;
+                    double d2 = Vector3d.SqrMagnitude(vessel.transform.position - KopernicusStar.Stars[i].sun.position);
+                    if (d2 < closestDistSqr)
+                    {
+                        closestDistSqr = d2;
+                        closestStar = KopernicusStar.Stars[i];
+                    }
+                }
+
+                if (closestStar != null && !manualTracking && trackedSun != closestStar.sun)
+                {
+                    trackedSunIndex = closestStar.sun.flightGlobalsIndex;
+                    trackedSun = closestStar.sun;
                     SolarPanel.SetTrackedBody(trackedSun);
                 }
             }
@@ -581,6 +627,7 @@ namespace WeatherDrivenSolarPanel
             Double totalFlux = 0;
             Double totalFlow = 0;
             double totalSunExposure = 0.0;
+            string occludingPart = null;
             // iterate over all stars, compute the exposure factor
             for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
             {
@@ -625,10 +672,9 @@ namespace WeatherDrivenSolarPanel
 
                 double sunCosineFactor = 0.0;
                 double sunOccludedFactor = 0.0;
-                string occludingPart = null;
+                occludingPart = null;
                 // Compute final aggregate exposure factor
                 double sunExposureFactor = 0.0;
-
 
                 CalExposureAndCosin(star, sunDirection, out sunCosineFactor, out sunOccludedFactor, out occludingPart, out exposureStatus);
                 sunExposureFactor = sunCosineFactor * sunOccludedFactor;
@@ -636,36 +682,6 @@ namespace WeatherDrivenSolarPanel
                 if (star.sun.Equals(trackedSun))
                 {
                     exposureFactor = sunExposureFactor;
-                    if (vessel.atmDensity > 0 && switchWeatherAffectWear)
-                    {
-                        WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
-                        layerName = NlayerName;
-                        statusChangeValue = WeatherImpactFactor;
-                        if (vessel != null 
-                            && (GetCategoryByValue(layerName) != "cloudyAffect") 
-                            && WeatherImpactFactor < 0.9f 
-                            && (vessel.situation != Vessel.Situations.PRELAUNCH))
-                        {
-                            if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
-                            {
-                                totalWeatherTime += Planetarium.GetUniversalTime() - timeWeather;
-                                timeWeather = Planetarium.GetUniversalTime();
-                            }
-                        }
-                        calculateStatus(totalWeatherTime);
-                    }
-                    else if (vessel.atmDensity <= 0)
-                    {
-                        Fields["weatherPanelStatus"].guiActive = false;
-                    }
-                    else if (switchWeatherAffectWear == false)
-                    {
-                        wearFactorTVC = 1.0;
-                        WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
-                        layerName = NlayerName;
-                        statusChangeValue = WeatherImpactFactor;
-                        calculateStatus();
-                    }
                 }
 
                 if ((sunExposureFactor != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
@@ -681,6 +697,43 @@ namespace WeatherDrivenSolarPanel
                 }
             }
 
+            WeatherImpactFactor = 1.0;
+            if (vessel.atmDensity > 0 && switchWeatherAffectWear)
+            {
+                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                layerName = NlayerName;
+                statusChangeValue = WeatherImpactFactor;
+
+                if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
+                {
+                    double currentTime = universeTime;
+                    if (vessel != null
+                        && (GetCategoryByValue(layerName) != "cloudyAffect")
+                        && WeatherImpactFactor < 0.9f
+                        && (vessel.situation != Vessel.Situations.PRELAUNCH))
+                    {
+                        if (timeWeather > 0)
+                        {
+                            totalWeatherTime += currentTime - timeWeather;
+                        }
+                    }
+                    timeWeather = currentTime;
+                }
+                calculateStatus(totalWeatherTime);
+            }
+            else if (vessel.atmDensity <= 0)
+            {
+                Fields["weatherPanelStatus"].guiActive = false;
+            }
+            else if (switchWeatherAffectWear == false)
+            {
+                wearFactorTVC = 1.0;
+                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
+                layerName = NlayerName;
+                statusChangeValue = WeatherImpactFactor;
+                calculateStatus();
+            }
+
             if ((exposureStatus != ExposureState.Exposed) && (totalSunExposure < 0.01))
             {
                 exposureState = exposureStatus;
@@ -694,8 +747,8 @@ namespace WeatherDrivenSolarPanel
             {
                 if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
                 {
-                    timeTimer += Planetarium.GetUniversalTime() - startTime;
-                    startTime = Planetarium.GetUniversalTime();
+                    timeTimer += universeTime - startTime;
+                    startTime = universeTime;
                 }
 
                 if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
@@ -711,45 +764,68 @@ namespace WeatherDrivenSolarPanel
             // get final output rate in EC/s
             currentOutput = totalFlow;
             wearFactor = wearFactorTime * wearFactorTVC;
-            double trackedSunVisiblefactor = IsBodyVisible(vessel, position, trackedSun, GetLargeBodies(position), out direction, out distance) ? 1.0 : 0.0;
-            if (wearFactor < 0.01)
+            bool trackedSunVisiblefactor = IsBodyVisible(vessel, position, trackedSun, _occludingBodiesCache, out direction, out distance);
+            // sunNotVisible = true:  The star is occluded (in shadow, cannot see the sun)
+            // sunNotVisible = false: The star is visible (in sunlight, clear line of sight)
+            bool sunNotVisible = trackedSunVisiblefactor == false;
+            if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
             {
-                Fields["weatherPanelStatus"].guiActive = false;
-                Fields["panelStatusEnergy"].guiActive = false;
-                Fields["panelStatusSunAOA"].guiActive = false;
-                exposureState = ExposureState.Disabled;
-                state = PanelState.Failure;
-            }
-            else
-            {
-                // ignore very small outputs
-                if (currentOutput < 1e-10)
+                if (wearFactor == 0.0)
                 {
-                    currentOutput = 0.0;
-                    if (exposureStatus == ExposureState.OccludedPart)
-                    {
-                        if (trackedSunVisiblefactor == 0 && KopernicusStar.UseMultiStarLogic)
-                            exposureStatus = ExposureState.NotVisible;
-                        exposureState = exposureStatus;
-                    }
-                    else
-                    {
-                        exposureState = ExposureState.NotVisible;
-                    }
+                    Fields["weatherPanelStatus"].guiActive = false;
+                    Fields["panelStatusEnergy"].guiActive = false;
+                    Fields["panelStatusSunAOA"].guiActive = false;
+                    exposureState = ExposureState.Disabled;
+                    state = PanelState.Failure;
                 }
                 else
                 {
-                    currentOutput = totalFlow * wearFactor * WeatherImpactFactor;
-                    exposureState = ExposureState.Exposed;
-                    if (resourceName == null)
+                    // ignore very small outputs
+                    if (currentOutput < 1e-10)
                     {
-                        resourceName = "ElectricCharge";
+                        currentOutput = 0.0;
+                        Vector3d up = (position - vessel.mainBody.position).normalized;
+                        bool sunBelowHorizon = Vector3d.Dot(direction, up) <= 0;
+
+                        if (sunNotVisible && !sunBelowHorizon)
+                        {
+                            exposureStatus = ExposureState.Eclipse;
+                        }
+                        else if (sunNotVisible && sunBelowHorizon && occludingPart == null)
+                        {
+                            exposureStatus = ExposureState.InShadow;
+                        }
+                        else if (sunNotVisible)
+                        {
+                            exposureStatus = ExposureState.InShadow;
+                        }
+                        exposureState = exposureStatus;
+
+                        if (wearFactor == 0)
+                        {
+                            exposureState = ExposureState.Disabled;
+                            state = PanelState.Failure;
+                            Fields["panelStatusEnergy"].guiActive = false;
+                            Fields["panelStatusSunAOA"].guiActive = false;
+                        }
                     }
-                    part.RequestResource(resourceName, (-currentOutput) * TimeWarp.fixedDeltaTime);
+                    else
+                    {
+                        exposureState = ExposureState.Exposed;
+                        if (sunNotVisible)
+                        {
+                            exposureFactor = 0;
+                        }
+                        currentOutput = totalFlow * wearFactor * WeatherImpactFactor;
+                        if (resourceName == null)
+                        {
+                            resourceName = "ElectricCharge";
+                        }
+                        part.RequestResource(resourceName, (-currentOutput) * TimeWarp.fixedDeltaTime);
+                    }
                 }
             }
         }
-
         #endregion
 
         #region Other methods
@@ -901,18 +977,29 @@ namespace WeatherDrivenSolarPanel
             return s;
         }
 
-        /// <summary>return the list of bodies whose apparent diameter is greater than 10 arcmin from the 'position' POV</summary>
         public static List<CelestialBody> GetLargeBodies(Vector3d position)
         {
             List<CelestialBody> visibleBodies = new List<CelestialBody>();
-            foreach (CelestialBody occludingBody in FlightGlobals.Bodies)
+            GetLargeBodiesNonAlloc(position, visibleBodies);
+            return visibleBodies;
+        }
+
+        public static void GetLargeBodiesNonAlloc(Vector3d position, List<CelestialBody> visibleBodies)
+        {
+            visibleBodies.Clear();
+            int bodyCount = FlightGlobals.Bodies.Count;
+            for (int i = 0; i < bodyCount; i++)
             {
+                CelestialBody occludingBody = FlightGlobals.Bodies[i];
                 // if apparent diameter > ~10 arcmin (~0.003 radians), consider the body for occlusion checks
                 // real apparent diameters at earth : sun/moon ~ 30 arcmin, Venus ~ 1 arcmin max
-                double apparentSize = (occludingBody.Radius * 2.0) / (occludingBody.position - position).magnitude;
-                if (apparentSize > 0.003) visibleBodies.Add(occludingBody);
+                double dist = (occludingBody.position - position).magnitude;
+                if (dist > 0)
+                {
+                    double apparentSize = (occludingBody.Radius * 2.0) / dist;
+                    if (apparentSize > 0.003) visibleBodies.Add(occludingBody);
+                }
             }
-            return visibleBodies;
         }
 
         public static Vector3d VesselPosition(Vessel v)
@@ -1031,29 +1118,30 @@ namespace WeatherDrivenSolarPanel
                 // The panel is oriented toward the sun, do a physic raycast to check occlusion from parts, terrain, buildings...
                 sunOccludedFactor = SolarPanel.GetOccludedFactor(sunDirection, out occludingPart);
                 // If this is the tracked sun and the panel is occluded, update the gui info string. 
-                if (star.sun == trackedSun)
+                if (star.sun == trackedSun && sunOccludedFactor == 0.0)
                 {
                     if (occludingPart != null)
                     {
-                        exposureStats = ExposureState.OccludedPart;
-                        mainOccludingPart = EllipsisMiddle(occludingPart, 15);
-                    }
-                    else
-                    {
-                        exposureStats = ExposureState.NotVisible;
+                        if (occludingPart == "Environment")
+                        {
+                            exposureStats = ExposureState.OccludedTerrain;
+                        }
+                        else
+                        {
+                            exposureStats = ExposureState.OccludedPart;
+                            mainOccludingPart = EllipsisMiddle(occludingPart, 15);
+                        }
                     }
                 }
             }
         }
-
         static string GetCategoryByValue(string value)
         {
-            foreach (var kvp in categoryDictionary)
+            EnsureCategoryConfig();
+
+            if (!string.IsNullOrEmpty(value) && _layerToCategoryMap.TryGetValue(value, out string category))
             {
-                if (kvp.Value.Contains(value))
-                {
-                    return kvp.Key;
-                }
+                return category;
             }
             return "Not Found!";
         }
@@ -1134,30 +1222,125 @@ namespace WeatherDrivenSolarPanel
             }
         }
 
+        private static bool? _globalSwitchTimeDecayWear = null;
+        private static bool? _globalSwitchWeatherAffectWear = null;
+
         public void LoadConfig()
         {
-            string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/GlobalConfig.cfg";
-
-            ConfigNode configNode = ConfigNode.Load(configFilePath);
-            if (configNode != null)
+            if (_globalSwitchTimeDecayWear.HasValue && _globalSwitchWeatherAffectWear.HasValue)
             {
-                ConfigNode myPluginNode = configNode.GetNode("WDSP");
-                if (myPluginNode != null)
-                {
-                    if (myPluginNode.HasValue("switchTimeDecayWear"))
-                    {
-                        switchTimeDecayWear = bool.Parse(myPluginNode.GetValue("switchTimeDecayWear"));
-                    }
-                    if (myPluginNode.HasValue("switchWeatherAffectWear"))
-                    {
-                        switchWeatherAffectWear = bool.Parse(myPluginNode.GetValue("switchWeatherAffectWear"));
-                    }
-                }
+                switchTimeDecayWear = _globalSwitchTimeDecayWear.Value;
+                switchWeatherAffectWear = _globalSwitchWeatherAffectWear.Value;
             }
             else
             {
-                Debug.LogError("Failed to load config file: " + configFilePath);
+                string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/globalConfig.cfg";
+
+                ConfigNode configNode = ConfigNode.Load(configFilePath);
+                if (configNode != null)
+                {
+                    ConfigNode myPluginNode = configNode.GetNode("WDSP");
+                    if (myPluginNode != null)
+                    {
+                        if (myPluginNode.HasValue("switchTimeDecayWear"))
+                        {
+                            switchTimeDecayWear = bool.Parse(myPluginNode.GetValue("switchTimeDecayWear"));
+                            _globalSwitchTimeDecayWear = switchTimeDecayWear;
+                        }
+                        else
+                        {
+                            _globalSwitchTimeDecayWear = switchTimeDecayWear; // Default
+                        }
+
+                        if (myPluginNode.HasValue("switchWeatherAffectWear"))
+                        {
+                            switchWeatherAffectWear = bool.Parse(myPluginNode.GetValue("switchWeatherAffectWear"));
+                            _globalSwitchWeatherAffectWear = switchWeatherAffectWear;
+                        }
+                        else
+                        {
+                            _globalSwitchWeatherAffectWear = switchWeatherAffectWear; // Default
+                        }
+                    }
+                }
+                else
+                {
+                    Debug.LogError("Failed to load config file: " + configFilePath);
+                    _globalSwitchTimeDecayWear = switchTimeDecayWear;
+                    _globalSwitchWeatherAffectWear = switchWeatherAffectWear;
+                }
             }
+
+            if (switchTimeDecayWear && switchWeatherAffectWear)
+            {
+                return;
+            }
+            else if (switchTimeDecayWear)
+            {
+                totalWeatherTime = 0;
+            }
+            else if (switchWeatherAffectWear)
+            {
+                timeTimer = 0;
+            }
+        }
+
+        public static void InitCurves()
+        {
+            if (_curvesInitialized) return;
+
+            timeEfficCurveNonRO.Add(0f, 1.0f, -3.521126E-05f, -3.521126E-05f);
+            timeEfficCurveNonRO.Add(4260f, 0.85f, -3.638498E-05f, -3.638498E-05f);
+            timeEfficCurveNonRO.Add(6390f, 0.77f, -3.521128E-05f, -3.521128E-05f);
+            timeEfficCurveNonRO.Add(8520f, 0.7f, -2.582158E-05f, -2.582158E-05f);
+            timeEfficCurveNonRO.Add(10650f, 0.66f, -4.694836E-05f, -4.694836E-05f);
+            timeEfficCurveNonRO.Add(12780f, 0.5f, -8.450705E-05f, -8.450705E-05f);
+            timeEfficCurveNonRO.Add(14910f, 0.3f, -6.455398E-05f, -6.455398E-05f);
+            timeEfficCurveNonRO.Add(19170f, 0.15f, -5.28169E-05f, -5.28169E-05f);
+            timeEfficCurveNonRO.Add(21300f, 0f, -7.042254E-05f, -7.042254E-05f);
+
+            weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
+            weatherTimeEfficCurve.Add(426f, 0.8f, -0.0005868545f, -0.0005868545f);
+            weatherTimeEfficCurve.Add(852f, 0.5f, -0.000528169f, -0.000528169f);
+            weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0003521127f, -0.0003521127f);
+            weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
+            weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
+
+            temperatureEfficCurve.Add(4f, 1.2f, 0.0f, -0.0006f);
+            temperatureEfficCurve.Add(300f, 1f, -0.0008f, -0.0008f);
+            temperatureEfficCurve.Add(1200f, 0.134f, -0.00035f, -0.00035f);
+            temperatureEfficCurve.Add(1900f, 0.02f, -3.72E-05f, -3.72E-05f);
+            temperatureEfficCurve.Add(2500f, 0.01f, 0.0f, 0.0f);
+
+            AtmosphericAttenutationAirMassMultiplier.Add(0f, 1f, 0f, 0f);
+            AtmosphericAttenutationAirMassMultiplier.Add(5f, 0.982f, -0.010f, -0.010f);
+            AtmosphericAttenutationAirMassMultiplier.Add(10f, 0.891f, -0.032f, -0.032f);
+            AtmosphericAttenutationAirMassMultiplier.Add(15f, 0.746f, -0.025f, -0.025f);
+            AtmosphericAttenutationAirMassMultiplier.Add(20f, 0.657f, -0.014f, -0.014f);
+            AtmosphericAttenutationAirMassMultiplier.Add(30f, 0.550f, -0.0081f, -0.0081f);
+            AtmosphericAttenutationAirMassMultiplier.Add(40f, 0.484f, -0.0053f, -0.0053f);
+            AtmosphericAttenutationAirMassMultiplier.Add(50f, 0.439f, -0.0039f, -0.0039f);
+            AtmosphericAttenutationAirMassMultiplier.Add(60f, 0.405f, -0.0030f, -0.0030f);
+            AtmosphericAttenutationAirMassMultiplier.Add(80f, 0.357f, -0.0020f, -0.0020f);
+            AtmosphericAttenutationAirMassMultiplier.Add(100f, 0.324f, -0.0014f, -0.0014f);
+            AtmosphericAttenutationAirMassMultiplier.Add(150f, 0.271f, -0.00079f, -0.00079f);
+            AtmosphericAttenutationAirMassMultiplier.Add(200f, 0.239f, -0.00052f, -0.00052f);
+            AtmosphericAttenutationAirMassMultiplier.Add(300f, 0.200f, -0.00029f, -0.00029f);
+            AtmosphericAttenutationAirMassMultiplier.Add(500f, 0.159f, -0.00014f, -0.00014f);
+            AtmosphericAttenutationAirMassMultiplier.Add(800f, 0.130f, -0.00007f, -0.00007f);
+            AtmosphericAttenutationAirMassMultiplier.Add(1200f, 0.108f, -0.00004f, 0f);
+
+            AtmosphericAttenutationSolarAngleMultiplier.Add(0f, 1f, 0f, 0f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(15f, 0.985f, -0.0020f, -0.0020f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(30f, 0.940f, -0.0041f, -0.0041f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(45f, 0.862f, -0.0064f, -0.0064f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(60f, 0.746f, -0.0092f, -0.0092f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(75f, 0.579f, -0.0134f, -0.0134f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(90f, 0.336f, -0.0185f, -0.0185f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(105f, 0.100f, -0.008f, -0.008f);
+            AtmosphericAttenutationSolarAngleMultiplier.Add(120f, 0.050f, 0f, 0f);
+
+            _curvesInitialized = true;
         }
         #endregion
 
@@ -1189,7 +1372,7 @@ namespace WeatherDrivenSolarPanel
 
             /// <summary>Must return a [0;1] scalar evaluating the angle of the given sunDir on the panel surface (usually a dot product clamped to [0;1])</summary>
             /// <param name="analytic">if true and the panel is orientable, the returned scalar must be the best possible output (must use the rotation around the pivot)</param>
-            public abstract double GetCosineFactor(Vector3d sunDir, bool analytic = false);
+            public abstract double GetCosineFactor(Vector3d sunDir);
 
             /// <summary>must return the state of the panel, must be able to work before OnStart has been called</summary>
             public abstract PanelState GetState();
@@ -1346,7 +1529,7 @@ namespace WeatherDrivenSolarPanel
                 if (sunCatcherPosition == null)
                     sunCatcherPosition = panelModule.part.FindModelTransform(panelModule.secondaryTransformName);
 
-                Physics.Raycast(sunCatcherPosition.position + (sunDir * panelModule.raycastOffset), sunDir, out raycastHit, 10000f);
+                Physics.Raycast(sunCatcherPosition.position + (sunDir * panelModule.raycastOffset), sunDir, out raycastHit, 10000f, occlusionLayerMask);
 
                 if (raycastHit.collider != null)
                 {
@@ -1359,25 +1542,22 @@ namespace WeatherDrivenSolarPanel
 
                         occludingPart = blockingPart.partInfo.title;
                     }
+                    else
+                    {
+                        occludingPart = "Environment";
+                    }
                     occludingFactor = 0.0;
                 }
                 return occludingFactor;
             }
 
             // we use the current panel orientation, only doing it ourself when analytic = true
-            public override double GetCosineFactor(Vector3d sunDir, bool analytic = false)
+            public override double GetCosineFactor(Vector3d sunDir)
             {
                 switch (panelModule.panelType)
                 {
                     case ModuleDeployableSolarPanel.PanelType.FLAT:
-                        if (!analytic)
-                            return Math.Max(Vector3d.Dot(sunDir, panelModule.trackingDotTransform.forward), 0.0);
-
-                        if (panelModule.isTracking)
-                            return Math.Cos(1.57079632679 - Math.Acos(Vector3d.Dot(sunDir, sunCatcherPivot.up)));
-                        else
-                            return Math.Max(Vector3d.Dot(sunDir, sunCatcherPivot.forward), 0.0);
-
+                        return Math.Max(Vector3d.Dot(sunDir, panelModule.trackingDotTransform.forward), 0.0);
                     case ModuleDeployableSolarPanel.PanelType.CYLINDRICAL:
                         return Math.Max((1.0 - Math.Abs(Vector3d.Dot(sunDir, panelModule.trackingDotTransform.forward))) * (1.0 / Math.PI), 0.0);
                     case ModuleDeployableSolarPanel.PanelType.SPHERICAL:
@@ -1510,7 +1690,7 @@ namespace WeatherDrivenSolarPanel
                 RaycastHit raycastHit;
                 foreach (Transform panel in sunCatchers)
                 {
-                    if (Physics.Raycast(panel.position + (sunDir * 0.25), sunDir, out raycastHit, 10000f))
+                    if (Physics.Raycast(panel.position + (sunDir * 0.25), sunDir, out raycastHit, 10000f, occlusionLayerMask))
                     {
                         if (occludingPart == null && raycastHit.collider != null)
                         {
@@ -1523,8 +1703,11 @@ namespace WeatherDrivenSolarPanel
 
                                 occludingPart = blockingPart.partInfo.title;
                             }
-                            //occludedFactor -= 1.0 / sunCatchers.Length;
-                            occludedFactor = 0;
+                            else
+                            {
+                                occludingPart = "Environment";
+                            }
+                            occludedFactor -= 1.0 / sunCatchers.Length;
                         }
                     }
                 }
@@ -1533,7 +1716,7 @@ namespace WeatherDrivenSolarPanel
                 return occludedFactor;
             }
 
-            public override double GetCosineFactor(Vector3d sunDir, bool analytic = false)
+            public override double GetCosineFactor(Vector3d sunDir)
             {
                 double cosineFactor = 0.0;
 
@@ -1647,7 +1830,7 @@ namespace WeatherDrivenSolarPanel
             }
 
             // exactly the same code as NFS curved panel
-            public override double GetCosineFactor(Vector3d sunDir, bool analytic = false)
+            public override double GetCosineFactor(Vector3d sunDir)
             {
                 double cosineFactor = 0.0;
 
@@ -1668,7 +1851,7 @@ namespace WeatherDrivenSolarPanel
                 RaycastHit raycastHit;
                 foreach (Transform panel in sunCatchers)
                 {
-                    if (Physics.Raycast(panel.position + (sunDir * 0.25), sunDir, out raycastHit, 10000f))
+                    if (Physics.Raycast(panel.position + (sunDir * 0.25), sunDir, out raycastHit, 10000f, occlusionLayerMask))
                     {
                         if (occludingPart == null && raycastHit.collider != null)
                         {
@@ -1681,8 +1864,11 @@ namespace WeatherDrivenSolarPanel
 
                                 occludingPart = blockingPart.partInfo.title;
                             }
-                            //occludedFactor -= 1.0 / sunCatchers.Length;
-                            occludedFactor = 0;
+                            else
+                            {
+                                occludingPart = "Environment";
+                            }
+                            occludedFactor -= 1.0 / sunCatchers.Length;
                         }
                     }
                 }
@@ -1855,7 +2041,7 @@ namespace WeatherDrivenSolarPanel
                 return true;
             }
 
-            public override double GetCosineFactor(Vector3d sunDir, bool analytic = false)
+            public override double GetCosineFactor(Vector3d sunDir)
             {
                 double cosineFactor = 0.0;
                 int suncatcherTotalCount = 0;
@@ -1865,14 +2051,7 @@ namespace WeatherDrivenSolarPanel
                     suncatcherTotalCount += panel.SuncatcherCount;
                     for (int i = 0; i < panel.SuncatcherCount; i++)
                     {
-                        if (!analytic) { cosineFactor += Math.Max(Vector3d.Dot(sunDir, panel.SuncatcherAxisVector(i)), 0.0); continue; }
-
-                        switch (trackingType)
-                        {
-                            case TrackingType.Fixed: cosineFactor += Math.Max(Vector3d.Dot(sunDir, panel.SuncatcherAxisVector(i)), 0.0); continue;
-                            case TrackingType.SinglePivot: cosineFactor += Math.Cos(1.57079632679 - Math.Acos(Vector3d.Dot(sunDir, panel.PivotAxisVector))); continue;
-                            case TrackingType.DoublePivot: cosineFactor += 1.0; continue;
-                        }
+                        cosineFactor += Math.Max(Vector3d.Dot(sunDir, panel.SuncatcherAxisVector(i)), 0.0);
                     }
                 }
                 return cosineFactor / suncatcherTotalCount;
@@ -1890,20 +2069,26 @@ namespace WeatherDrivenSolarPanel
                     for (int i = 0; i < panel.SuncatcherCount; i++)
                     {
                         RaycastHit raycastHit;
-                        Physics.Raycast(panel.SuncatcherPosition(i) + (sunDir * 0.25), sunDir, out raycastHit, 10000f);
+                        raycastHit = panel.SuncatcherHit(i);
 
                         if (raycastHit.collider != null)
                         {
                             occludingFactor += 1.0; // in case of multiple panels per part, it is perfectly valid for panels to occlude themselves so we don't do the usual check
                             Part blockingPart = Part.GetComponentUpwards<Part>(raycastHit.transform.gameObject);
-                            if (occludingPart == null && blockingPart != null) // don't update if occlusion is from multiple parts
+                            if (occludingPart == null && blockingPart != null)
+                            {
+                                // don't update if occlusion is from multiple parts
                                 occludingPart = blockingPart.partInfo.title;
+                            }
+                            else
+                            {
+                                occludingPart = "Environment";
+                            }
                         }
                     }
                 }
                 occludingFactor = 1.0 - (occludingFactor / suncatcherTotalCount);
-                //if (occludingFactor < 0.01) occludingFactor = 0.0; // avoid precison issues
-                if (occludingFactor > 0.0 && occludingFactor < 1.0) occludingFactor = 0.0; // avoid precison issues
+                if (occludingFactor < 0.01) occludingFactor = 0.0; // avoid precison issues
                 return occludingFactor;
             }
 
