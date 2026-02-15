@@ -33,7 +33,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_Kerbalism|AnyCPU'">
-    <OutputPath>Output\Release\Kerbalism\</OutputPath>
+    <OutputPath>..\Extras\KerbalismSupport\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -41,7 +41,7 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU'">
-    <OutputPath>Output\Release\NoKerbalism\</OutputPath>
+    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
     <DefineConstants>TRACE;NoKerbalism</DefineConstants>
     <Optimize>true</Optimize>
     <PlatformTarget>AnyCPU</PlatformTarget>

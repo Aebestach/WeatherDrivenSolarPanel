@@ -383,8 +383,8 @@ namespace WeatherDrivenSolarPanel
                 WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(__instance.trackedSunInfo.sunData.body, out string NlayerName);
                 layerName = NlayerName;
                 statusChangeValue = WeatherImpactFactor;
-                Debug.Log($"layerName的值是{layerName}");
-                Debug.Log($"GetCategoryByValue的值是{GetCategoryByValue(layerName)}");
+                //Debug.Log($"layerName is {layerName}");
+                //Debug.Log($"GetCategoryByValue is {GetCategoryByValue(layerName)}");
                 if (__instance.vessel != null
                     && (GetCategoryByValue(layerName) != "cloudyAffect")
                     && WeatherImpactFactor < 0.9f

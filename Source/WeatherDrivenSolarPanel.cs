@@ -529,40 +529,46 @@ namespace WeatherDrivenSolarPanel
                 }
             }
 
-            if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static))
-            {
+            if (!(state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)) 
+            { 
                 wearFactor = 1.0;
-                if ((vessel.situation != Vessel.Situations.PRELAUNCH) && switchTimeDecayWear)
-                {
-                    if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
-                    {
-                        wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0));
+                if ((vessel.situation != Vessel.Situations.PRELAUNCH) && switchTimeDecayWear) 
+                { 
+                    if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag) 
+                    { 
+                        wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0)); 
                     }
-                    else if (ROFlag == false)
-                    {
-                        wearFactorTime = timeEfficCurveNonRO.Evaluate((float)(timeTimer / 21600.0));
-                    }
-                }
-                if(switchWeatherAffectWear)
-                {
-                    calculateStatus(totalWeatherTime);
+                    else if (ROFlag == false) 
+                    { 
+                        wearFactorTime = timeEfficCurveNonRO.Evaluate((float)(timeTimer / 21600.0)); 
+                    } 
+                } 
+                if (switchWeatherAffectWear) 
+                { 
+                    calculateStatus(totalWeatherTime); 
+                } 
+                
+                if (switchTimeDecayWear && switchWeatherAffectWear) 
+                { 
+                    wearFactor = wearFactorTime * wearFactorTVC; 
+                } 
+                else if (switchTimeDecayWear) 
+                { 
+                    wearFactor = wearFactorTime; 
+                } 
+                else if (switchWeatherAffectWear) 
+                { 
+                    wearFactor = wearFactorTVC; 
                 }
 
-                if (switchTimeDecayWear && switchWeatherAffectWear)
+                if (vessel.situation == Vessel.Situations.PRELAUNCH)
                 {
-                    wearFactor = wearFactorTime * wearFactorTVC;
-                }else if (switchTimeDecayWear)
-                {
-                    wearFactor = wearFactorTime;
-                }else if(switchWeatherAffectWear)
-                {
-                    wearFactor = wearFactorTVC;
+                    wearFactor = 1.0;
                 }
-
-                exposureState = ExposureState.Disabled;
-                currentOutput = 0.0;
-                timeWeather = -1.0;
-                return;
+                exposureState = ExposureState.Disabled; 
+                currentOutput = 0.0; 
+                timeWeather = -1.0; 
+                return; 
             }
 
             Vessel vesselActive = FlightGlobals.ActiveVessel;
