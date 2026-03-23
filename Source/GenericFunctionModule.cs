@@ -3,13 +3,36 @@ using System;
 using System.Linq;
 using UnityEngine;
 using Utils;
+using System.Collections.Generic;
 
 namespace WDSP_GenericFunctionModule
 {
     public class GenericFunctionModule
     {
+        private static HashSet<string> excludedLayers = new HashSet<string>();
+        private static bool configLoaded = false;
+
+        private static void LoadConfig()
+        {
+            if (configLoaded) return;
+            ConfigNode node = GameDatabase.Instance.GetConfigNodes("WDSP_CONFIG").FirstOrDefault();
+            if (node != null)
+            {
+                ConfigNode excluded = node.GetNode("EXCLUDED_LAYERS");
+                if (excluded != null)
+                {
+                    foreach (string val in excluded.GetValues("layer"))
+                    {
+                        excludedLayers.Add(val);
+                    }
+                }
+            }
+            configLoaded = true;
+        }
+
         public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
         {
+            LoadConfig();
             layerName = null;
             int stepCount = 50;
             float totalDensity = 0f;
@@ -30,14 +53,10 @@ namespace WDSP_GenericFunctionModule
 
             foreach (var layer in layers)
             {
-                if (layer.Name != "Kerbin-Snow-Particles-1" && layer.Name != "Kerbin-Snow-Particles-2" && layer.Name != "CloudTops"
-                    && layer.Name != "EarthAurora1" && layer.Name != "EarthAurora2" && layer.Name != "EarthAurora3"
-                    && layer.Name != "PolarHood" && layer.Name != "TropicalCumulus" && layer.Name != "TholinHaze"
-                    && layer.Name != "MethaneDrizzle" && layer.Name != "Duna-dust-scattered" && layer.Name != "Earth-Snow-Particles-1"
-                    && layer.Name != "Earth-Snow-Particles-2" && layer.Name != "Venus-fog-scattered" && layer.Name != "Venus-highfog-scattered"
-                    && layer.Name != "Titan-fog-scattered" && layer.Name != "Eve-Fog" && layer.Name != "Eve-Weather-Light"
-                    && layer.Name != "Titan-fog-scattered" && layer.Name != "PolarHoodNorth" && layer.Name != "PolarHoodSouth"
-                    && layer.Name != "Huygen-Fog" && layer.Name != "Laythe-Fog")
+#if DEBUG
+				Debug.Log($"Layer Name is {layer.name}");
+#endif
+                if (!excludedLayers.Contains(layer.Name))
                 {
                     cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
 
