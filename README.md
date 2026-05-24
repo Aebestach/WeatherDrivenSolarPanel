@@ -13,11 +13,8 @@ Experience dynamic energy fluctuations when encountering rain, snow, dust storms
 ---
 
 ## Dependencies
-* **[Kopernicus](https://github.com/Kopernicus/Kopernicus)** —— *[Please use version v212 or later]*
-    * *Recommended: Check [this Issue](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5) for common setup errors.*
 * **[True Volumetric Clouds](https://www.patreon.com/blackrack/posts)** —— Required for weather data.
 * **Module Manager** —— Required for patch application.
-* **Kerbalism Users**: Ensure `000_Harmony` is installed.
 
 ---
 

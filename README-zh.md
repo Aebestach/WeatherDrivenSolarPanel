@@ -14,11 +14,8 @@
 ---
 
 ## 必要前置 (Dependencies)
-* **[Kopernicus](https://github.com/Kopernicus/Kopernicus)** —— *[请使用 v212 或更高版本]*
-    * *注意：请务必检查 [此 Issue](https://github.com/Aebestach/WeatherDrivenSolarPanel/issues/5) 以避免安装错误。*
 * **[True Volumetric Clouds](https://www.patreon.com/blackrack/posts)** —— 天气系统核心。
 * **Module Manager** —— 模组配置必需。
-* **Kerbalism 用户**：请确保已安装 `000_Harmony`。
 
 ---
 
