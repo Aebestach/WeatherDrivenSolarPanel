@@ -1,12 +1,10 @@
-﻿#if NoKerbalism
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 using System;
 using UnityEngine;
 using KSP.Localization;
 using System.Linq;
 using System.Reflection;
-using Kopernicus.Components;
 using WDSP_GenericFunctionModule;
 
 namespace WeatherDrivenSolarPanel
@@ -149,8 +147,255 @@ namespace WeatherDrivenSolarPanel
         private static Dictionary<string, string> _layerToCategoryMap;
         private static bool _categoryConfigLoaded = false;
         private List<CelestialBody> _occludingBodiesCache = new List<CelestialBody>();
-        private List<KopernicusStar> _starListCache = new List<KopernicusStar>();
+        private List<WDSPStarInfo> _starListCache = new List<WDSPStarInfo>();
         private static bool _curvesInitialized = false;
+
+        private class WDSPStarInfo
+        {
+            private const BindingFlags ReflectionFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+            private static Type kopernicusStarType = null;
+            private static FieldInfo kopernicusStarsField = null;
+            private static FieldInfo kopernicusSunField = null;
+            private static FieldInfo kopernicusShifterField = null;
+            private static MethodInfo kopernicusCalculateFluxAtMethod = null;
+            private static List<WDSPStarInfo> cachedStars = new List<WDSPStarInfo>();
+            private static int cachedStarsFrame = -1;
+
+            private readonly object kopernicusStar;
+            private readonly object shifter;
+            private readonly MethodInfo applyPhysicsMethod;
+            private readonly FieldInfo givesOffLightField;
+            private readonly FieldInfo solarLuminosityField;
+
+            public CelestialBody Sun { get; private set; }
+
+            private WDSPStarInfo(CelestialBody sun, object kopernicusStar = null, object shifter = null)
+            {
+                Sun = sun;
+                this.kopernicusStar = kopernicusStar;
+                this.shifter = shifter;
+
+                if (shifter != null)
+                {
+                    Type shifterType = shifter.GetType();
+                    applyPhysicsMethod = shifterType.GetMethod("ApplyPhysics", ReflectionFlags);
+                    givesOffLightField = shifterType.GetField("givesOffLight", ReflectionFlags);
+                    solarLuminosityField = shifterType.GetField("solarLuminosity", ReflectionFlags);
+                }
+            }
+
+            public static List<WDSPStarInfo> GetStars()
+            {
+                if (cachedStarsFrame == Time.frameCount && cachedStars.Count > 0)
+                {
+                    return cachedStars;
+                }
+
+                cachedStars = BuildStars();
+                cachedStarsFrame = Time.frameCount;
+                return cachedStars;
+            }
+
+            public static WDSPStarInfo GetBrightest(Vector3d position, List<WDSPStarInfo> starList)
+            {
+                if (starList == null || starList.Count == 0)
+                {
+                    return null;
+                }
+
+                WDSPStarInfo brightestStar = starList[0];
+                double greatestLuminosity = -1.0;
+                for (int i = 0; i < starList.Count; i++)
+                {
+                    WDSPStarInfo star = starList[i];
+                    if (star == null || star.Sun == null || !star.GivesOffLight)
+                    {
+                        continue;
+                    }
+
+                    double distanceSq = Math.Max(Vector3d.SqrMagnitude(position - star.Sun.position), 1.0);
+                    double apparentLuminosity = star.SolarLuminosity / distanceSq;
+                    if (apparentLuminosity > greatestLuminosity)
+                    {
+                        greatestLuminosity = apparentLuminosity;
+                        brightestStar = star;
+                    }
+                }
+
+                return brightestStar;
+            }
+
+            public static void ApplyPhysics(CelestialBody sun)
+            {
+                WDSPStarInfo star = GetStars().FirstOrDefault(s => s.Sun == sun);
+                star?.ApplyPhysics();
+            }
+
+            public void ApplyPhysics()
+            {
+                if (shifter == null || applyPhysicsMethod == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    applyPhysicsMethod.Invoke(shifter, null);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning("[WeatherDrivenSolarPanel] Kopernicus LightShifter.ApplyPhysics failed: " + ex.Message);
+                }
+            }
+
+            public double CalculateFluxAt(Vessel vessel)
+            {
+                if (kopernicusStar != null && kopernicusCalculateFluxAtMethod != null)
+                {
+                    try
+                    {
+                        object value = kopernicusCalculateFluxAtMethod.Invoke(kopernicusStar, new object[] { vessel });
+                        if (value is double flux)
+                        {
+                            return flux;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning("[WeatherDrivenSolarPanel] KopernicusStar.CalculateFluxAt failed: " + ex.Message);
+                    }
+                }
+
+                return CalculateStockFluxAt(vessel);
+            }
+
+            private bool GivesOffLight
+            {
+                get
+                {
+                    if (shifter == null || givesOffLightField == null)
+                    {
+                        return true;
+                    }
+
+                    object value = givesOffLightField.GetValue(shifter);
+                    return !(value is bool) || (bool)value;
+                }
+            }
+
+            private double SolarLuminosity
+            {
+                get
+                {
+                    if (shifter != null && solarLuminosityField != null)
+                    {
+                        object value = solarLuminosityField.GetValue(shifter);
+                        if (value is double luminosity)
+                        {
+                            return luminosity;
+                        }
+                        if (value is float luminosityFloat)
+                        {
+                            return luminosityFloat;
+                        }
+                    }
+
+                    return Math.Max(PhysicsGlobals.SolarLuminosityAtHome, 1.0);
+                }
+            }
+
+            private double CalculateStockFluxAt(Vessel vessel)
+            {
+                if (vessel == null || Sun == null)
+                {
+                    return 0.0;
+                }
+
+                double distance = Math.Max(Vector3d.Distance(vessel.GetWorldPos3D(), Sun.position) - Sun.Radius, 1.0);
+                return PhysicsGlobals.SolarLuminosity / (12.5663706143592 * distance * distance);
+            }
+
+            private static List<WDSPStarInfo> BuildStars()
+            {
+                List<WDSPStarInfo> stars = BuildKopernicusStars();
+                if (stars.Count > 0)
+                {
+                    return stars;
+                }
+
+                foreach (CelestialBody body in FlightGlobals.Bodies)
+                {
+                    if (body != null && body.isStar)
+                    {
+                        stars.Add(new WDSPStarInfo(body));
+                    }
+                }
+
+                if (stars.Count == 0 && global::Sun.Instance != null && global::Sun.Instance.sun != null)
+                {
+                    stars.Add(new WDSPStarInfo(global::Sun.Instance.sun));
+                }
+
+                return stars;
+            }
+
+            private static List<WDSPStarInfo> BuildKopernicusStars()
+            {
+                List<WDSPStarInfo> stars = new List<WDSPStarInfo>();
+                EnsureKopernicusReflection();
+                if (kopernicusStarsField == null)
+                {
+                    return stars;
+                }
+
+                object starsValue = kopernicusStarsField.GetValue(null);
+                if (!(starsValue is System.Collections.IEnumerable kopernicusStars))
+                {
+                    return stars;
+                }
+
+                foreach (object kopernicusStar in kopernicusStars)
+                {
+                    CelestialBody sun = kopernicusSunField?.GetValue(kopernicusStar) as CelestialBody;
+                    if (sun == null)
+                    {
+                        continue;
+                    }
+
+                    object shifter = kopernicusShifterField?.GetValue(kopernicusStar);
+                    stars.Add(new WDSPStarInfo(sun, kopernicusStar, shifter));
+                }
+
+                return stars;
+            }
+
+            private static void EnsureKopernicusReflection()
+            {
+                if (kopernicusStarType != null)
+                {
+                    return;
+                }
+
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    kopernicusStarType = assembly.GetType("Kopernicus.Components.KopernicusStar", false);
+                    if (kopernicusStarType != null)
+                    {
+                        break;
+                    }
+                }
+
+                if (kopernicusStarType == null)
+                {
+                    return;
+                }
+
+                kopernicusStarsField = kopernicusStarType.GetField("Stars", ReflectionFlags);
+                kopernicusSunField = kopernicusStarType.GetField("sun", ReflectionFlags);
+                kopernicusShifterField = kopernicusStarType.GetField("shifter", ReflectionFlags);
+                kopernicusCalculateFluxAtMethod = kopernicusStarType.GetMethod("CalculateFluxAt", ReflectionFlags, null, new[] { typeof(Vessel) }, null);
+            }
+        }
 
         private static void EnsureCategoryConfig()
         {
@@ -204,6 +449,7 @@ namespace WeatherDrivenSolarPanel
         //Change the value of status of the solar panel.
         private double statusChangeValue = 1.0;
         private string layerName = null;
+        private GenericFunctionModule.WeatherSample latestWeatherSample = null;
 
         [KSPField(isPersistant = true)]
         public double totalWeatherTime = 0.0;
@@ -233,15 +479,15 @@ namespace WeatherDrivenSolarPanel
         [KSPEvent(active = true, guiActive = true, guiName = "#Kopernicus_SolarPanelFixer_Selecttrackedstar")]//Select Tracked Star
         public void ManualTracking()
         {
-            KopernicusStar[] orderedStars = KopernicusStar.Stars
-                    .OrderBy(s => Vector3.Distance(vessel.transform.position, s.sun.position)).ToArray();
+            WDSPStarInfo[] orderedStars = WDSPStarInfo.GetStars()
+                    .OrderBy(s => Vector3.Distance(vessel.transform.position, s.Sun.position)).ToArray();
             Int32 stars = orderedStars.Count();
             DialogGUIBase[] options = new DialogGUIBase[stars + 1];
             // Assemble the buttons
             options[0] = new DialogGUIButton(SolarPanelFixer_Automatic, () => { manualTracking = false; }, true); //"Automatic"
             for (Int32 i = 0; i < stars; i++)
             {
-                CelestialBody body = orderedStars[i].sun;
+                CelestialBody body = orderedStars[i].Sun;
                 options[i + 1] = new DialogGUIButton(body.bodyDisplayName.Replace("^N", ""), () =>
                 {
                     manualTracking = true;
@@ -325,7 +571,7 @@ namespace WeatherDrivenSolarPanel
                 timeEfficCurve = SolarPanel.GetTimeCurve();
 
             // setup star selection GUI
-            Events["ManualTracking"].active = KopernicusStar.Stars.Count > 1 && SolarPanel.IsTracking;
+            Events["ManualTracking"].active = WDSPStarInfo.GetStars().Count > 1 && SolarPanel.IsTracking;
             Events["ManualTracking"].guiActive = state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static;
 
             // setup target module animation for custom star tracking
@@ -583,13 +829,14 @@ namespace WeatherDrivenSolarPanel
             
             GetLargeBodiesNonAlloc(position, _occludingBodiesCache);
 
-            for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
+            List<WDSPStarInfo> stars = WDSPStarInfo.GetStars();
+            for (Int32 s = 0; s < stars.Count; s++)
             {
-                KopernicusStar starL = KopernicusStar.Stars[s];
+                WDSPStarInfo starL = stars[s];
                 // Optimization: Skip normalized calculation if not needed for the check
-                // Vector3d dIRECTION = (starL.sun.position - position).normalized; 
+                // Vector3d dIRECTION = (starL.Sun.position - position).normalized; 
                 
-                if (IsBodyVisible(vessel, position, starL.sun, _occludingBodiesCache, out direction, out distance))
+                if (IsBodyVisible(vessel, position, starL.Sun, _occludingBodiesCache, out direction, out distance))
                 {
                     _starListCache.Add(starL);
                 }
@@ -597,34 +844,34 @@ namespace WeatherDrivenSolarPanel
 
             if (_starListCache.Count > 0)
             {
-                KopernicusStar brightestStar = KopernicusStar.GetBrightest(position, _starListCache);
-                if (!manualTracking && trackedSun != brightestStar.sun)
+                WDSPStarInfo brightestStar = WDSPStarInfo.GetBrightest(position, _starListCache);
+                if (brightestStar != null && !manualTracking && trackedSun != brightestStar.Sun)
                 {
-                    trackedSunIndex = brightestStar.sun.flightGlobalsIndex;
-                    trackedSun = brightestStar.sun;
+                    trackedSunIndex = brightestStar.Sun.flightGlobalsIndex;
+                    trackedSun = brightestStar.Sun;
                     SolarPanel.SetTrackedBody(trackedSun);
                 }
             }
             else
             {
                 // Optimization: Find closest star without sorting everything
-                KopernicusStar closestStar = null;
+                WDSPStarInfo closestStar = null;
                 double closestDistSqr = double.MaxValue;
                 
-                for (int i = 0; i < KopernicusStar.Stars.Count; i++)
+                for (int i = 0; i < stars.Count; i++)
                 {
-                    double d2 = Vector3d.SqrMagnitude(vessel.transform.position - KopernicusStar.Stars[i].sun.position);
+                    double d2 = Vector3d.SqrMagnitude(vessel.transform.position - stars[i].Sun.position);
                     if (d2 < closestDistSqr)
                     {
                         closestDistSqr = d2;
-                        closestStar = KopernicusStar.Stars[i];
+                        closestStar = stars[i];
                     }
                 }
 
-                if (closestStar != null && !manualTracking && trackedSun != closestStar.sun)
+                if (closestStar != null && !manualTracking && trackedSun != closestStar.Sun)
                 {
-                    trackedSunIndex = closestStar.sun.flightGlobalsIndex;
-                    trackedSun = closestStar.sun;
+                    trackedSunIndex = closestStar.Sun.flightGlobalsIndex;
+                    trackedSun = closestStar.Sun;
                     SolarPanel.SetTrackedBody(trackedSun);
                 }
             }
@@ -635,13 +882,13 @@ namespace WeatherDrivenSolarPanel
             double totalSunExposure = 0.0;
             string occludingPart = null;
             // iterate over all stars, compute the exposure factor
-            for (Int32 s = 0; s < KopernicusStar.Stars.Count; s++)
+            for (Int32 s = 0; s < stars.Count; s++)
             {
-                KopernicusStar star = KopernicusStar.Stars[s];
+                WDSPStarInfo star = stars[s];
                 // Use this star
-                star.shifter.ApplyPhysics();
+                star.ApplyPhysics();
 
-                Vector3d sunDirection = (star.sun.position - position).normalized;
+                Vector3d sunDirection = (star.Sun.position - position).normalized;
 
                 // Add to TotalFlux and EC tally
                 float panelEffectivness = 0;
@@ -654,7 +901,7 @@ namespace WeatherDrivenSolarPanel
                     float horizonAngle = (float)Math.Acos(FlightGlobals.currentMainBody.Radius /
                         (FlightGlobals.currentMainBody.Radius + FlightGlobals.ship_altitude));
 
-                    float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.sun.position);
+                    float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.Sun.position);
 
                     Double gravAccelParameter = (vessel.mainBody.gravParameter /
                         Math.Pow(vessel.mainBody.Radius + FlightGlobals.ship_altitude, 2));
@@ -685,7 +932,7 @@ namespace WeatherDrivenSolarPanel
                 CalExposureAndCosin(star, sunDirection, out sunCosineFactor, out sunOccludedFactor, out occludingPart, out exposureStatus);
                 sunExposureFactor = sunCosineFactor * sunOccludedFactor;
                 totalSunExposure += sunExposureFactor;
-                if (star.sun.Equals(trackedSun))
+                if (star.Sun.Equals(trackedSun))
                 {
                     exposureFactor = sunExposureFactor;
                 }
@@ -698,53 +945,60 @@ namespace WeatherDrivenSolarPanel
                 }
                 if (starFluxAtHome > 0)
                 {
-                    totalFlow += ((starFlux) * panelEffectivness) /
+                    double starWeatherPowerFactor = 1.0;
+                    if (vessel.atmDensity > 0)
+                    {
+                        starWeatherPowerFactor = GenericFunctionModule.SampleWeather(star.Sun).PowerFactor;
+                    }
+
+                    totalFlow += ((starFlux) * panelEffectivness * starWeatherPowerFactor) /
                                  (1360 / PhysicsGlobals.SolarLuminosityAtHome);
                 }
             }
 
             WeatherImpactFactor = 1.0;
-            if (vessel.atmDensity > 0 && switchWeatherAffectWear)
+            latestWeatherSample = null;
+            if (vessel.atmDensity > 0)
             {
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
+                latestWeatherSample = GenericFunctionModule.SampleWeather(trackedSun);
+                WeatherImpactFactor = latestWeatherSample.PowerFactor;
+                layerName = latestWeatherSample.DominantLayerName;
+                statusChangeValue = latestWeatherSample.Severity;
 
-                if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
+                if (switchWeatherAffectWear)
                 {
-                    double currentTime = universeTime;
-                    if (vessel != null
-                        && (GetCategoryByValue(layerName) != "cloudyAffect")
-                        && WeatherImpactFactor < 0.9f
-                        && (vessel.situation != Vessel.Situations.PRELAUNCH))
+                    if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
                     {
-                        if (timeWeather > 0)
+                        double currentTime = universeTime;
+                        if (vessel != null
+                            && latestWeatherSample.WearSeverity > 0.05f
+                            && (vessel.situation != Vessel.Situations.PRELAUNCH))
                         {
-                            totalWeatherTime += currentTime - timeWeather;
+                            if (timeWeather > 0)
+                            {
+                                totalWeatherTime += (currentTime - timeWeather) * latestWeatherSample.WearSeverity;
+                            }
                         }
+                        timeWeather = currentTime;
                     }
-                    timeWeather = currentTime;
+                    calculateStatus(latestWeatherSample, totalWeatherTime);
                 }
-                calculateStatus(totalWeatherTime);
+                else
+                {
+                    wearFactorTVC = 1.0;
+                    calculateStatus(latestWeatherSample);
+                }
             }
             else if (vessel.atmDensity <= 0)
             {
                 Fields["weatherPanelStatus"].guiActive = false;
-            }
-            else if (switchWeatherAffectWear == false)
-            {
-                wearFactorTVC = 1.0;
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(trackedSun, out string NlayerName);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
-                calculateStatus();
             }
 
             if ((exposureStatus != ExposureState.Exposed) && (totalSunExposure < 0.01))
             {
                 exposureState = exposureStatus;
             }
-            KopernicusStar.CelestialBodies[trackedSun].shifter.ApplyPhysics();
+            WDSPStarInfo.ApplyPhysics(trackedSun);
             vessel.solarFlux = totalFlux;
 
             // get wear factor (time based output degradation)
@@ -822,7 +1076,7 @@ namespace WeatherDrivenSolarPanel
                         {
                             exposureFactor = 0;
                         }
-                        currentOutput = totalFlow * wearFactor * WeatherImpactFactor;
+                        currentOutput = totalFlow * wearFactor;
                         if (resourceName == null)
                         {
                             resourceName = "ElectricCharge";
@@ -1104,7 +1358,7 @@ namespace WeatherDrivenSolarPanel
         }
 
         ///<summary>Calculate cosine factor and masking factor</summary>
-        public void CalExposureAndCosin(KopernicusStar star, Vector3d sunDirection, out double sunCosineFactor, out double sunOccludedFactor, out string occludingPart, out ExposureState exposureStats)
+        private void CalExposureAndCosin(WDSPStarInfo star, Vector3d sunDirection, out double sunCosineFactor, out double sunOccludedFactor, out string occludingPart, out ExposureState exposureStats)
         {
             sunCosineFactor = 0.0;
             sunOccludedFactor = 0.0;
@@ -1115,7 +1369,7 @@ namespace WeatherDrivenSolarPanel
             if (sunCosineFactor == 0.0)
             {
                 // If this is the tracked sun and the panel is not oriented toward the sun, update the gui info string.
-                if (star.sun == trackedSun)
+                if (star.Sun == trackedSun)
                 {
                     exposureStats = ExposureState.BadOrientation;
                 }
@@ -1125,7 +1379,7 @@ namespace WeatherDrivenSolarPanel
                 // The panel is oriented toward the sun, do a physic raycast to check occlusion from parts, terrain, buildings...
                 sunOccludedFactor = SolarPanel.GetOccludedFactor(sunDirection, out occludingPart);
                 // If this is the tracked sun and the panel is occluded, update the gui info string. 
-                if (star.sun == trackedSun && sunOccludedFactor == 0.0)
+                if (star.Sun == trackedSun && sunOccludedFactor == 0.0)
                 {
                     if (occludingPart != null)
                     {
@@ -1144,89 +1398,70 @@ namespace WeatherDrivenSolarPanel
         }
         static string GetCategoryByValue(string value)
         {
-            EnsureCategoryConfig();
-
-            if (!string.IsNullOrEmpty(value) && _layerToCategoryMap.TryGetValue(value, out string category))
-            {
-                return category;
-            }
-            return "Not Found!";
+            return GenericFunctionModule.GetCategoryByValue(value);
         }
 
         public void calculateStatus()
         {
-            switch (GetCategoryByValue(layerName))
-            {
-                case "cloudyAffect":
-                    if (statusChangeValue < 0.95f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
-                    }
-                    break;
-                case "precipitationAffect":
-                    if (statusChangeValue < 0.85f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
-                    }
-                    break;
-                case "dustStormAffect":
-                    if (statusChangeValue < 0.9f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "volcanoesAffect":
-                    if (statusChangeValue < 0.95f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_volcanoesAffect + "</color>";
-                    }
-                    break;
-                default:
-                    // Default case if none of the above conditions are met
-                    weatherPanelStatus = "<color=#FF7F00>" + WDSP_TVC_sunDirect + "</color>";
-                    break;
-            }
+            calculateStatus(latestWeatherSample, -1.0);
         }
 
         public void calculateStatus(double weatherTime)
         {
-            switch (GetCategoryByValue(layerName))
+            calculateStatus(latestWeatherSample, weatherTime);
+        }
+
+        private void calculateStatus(GenericFunctionModule.WeatherSample sample, double weatherTime = -1.0)
+        {
+            string category = sample != null ? sample.Category : GetCategoryByValue(layerName);
+            float severity = sample != null ? sample.Severity : Mathf.Clamp01((float)(1.0 - statusChangeValue));
+            bool updateWear = weatherTime >= 0.0;
+            bool hasWeather = sample != null ? sample.HasWeather : severity > 0.05f;
+            string statusText = WDSP_TVC_sunDirect;
+            string color = "FF7F00";
+
+            if (hasWeather)
             {
-                case "cloudyAffect":
-                    if (statusChangeValue < 0.80f)
-                    {
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_cloudyAffect + "</color>";
-                    }
-                    break;
-                case "precipitationAffect":
-                    if (statusChangeValue < 0.85f)
-                    {
-                        if (statusChangeValue < 0.25f)
-                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_precipitationAffect + "</color>";
-                    }
-                    break;
-                case "dustStormAffect":
-                    if (statusChangeValue < 0.80f)
-                    {
-                        if (statusChangeValue < 0.65f)
-                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_dustStormAffect + "</color>";
-                    }
-                    break;
-                case "volcanoesAffect":
-                    if (statusChangeValue < 0.90f)
-                    {
-                        if (statusChangeValue < 0.55f)
-                            wearFactorTVC = weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0));
-                        weatherPanelStatus = "<color=#5F9F9F>" + WDSP_TVC_volcanoesAffect + "</color>";
-                    }
-                    break;
-                default:
-                    // Default case if none of the above conditions are met
-                    weatherPanelStatus = "<color=#FF7F00>" + WDSP_TVC_sunDirect + "</color>";
-                    break;
+                switch (category)
+                {
+                    case GenericFunctionModule.CategoryCloudy:
+                        if (severity > 0.08f)
+                        {
+                            statusText = WDSP_TVC_cloudyAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryPrecipitation:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_precipitationAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryDustStorm:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_dustStormAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryVolcanoes:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_volcanoesAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                }
             }
+
+            weatherPanelStatus = "<color=#" + color + ">" + statusText + "</color>";
         }
 
         private static bool? _globalSwitchTimeDecayWear = null;
@@ -2372,4 +2607,3 @@ namespace WeatherDrivenSolarPanel
         #endregion
     }
 }
-#endif

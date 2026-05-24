@@ -27,38 +27,22 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>Output\Release\</OutputPath>
+    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_Kerbalism|AnyCPU'">
-    <OutputPath>..\Extras\KerbalismSupport\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU'">
-    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
-    <DefineConstants>TRACE;NoKerbalism</DefineConstants>
-    <Optimize>true</Optimize>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\..\Games\KSP\1.12.5 Kcalbeloh\GameData\000_Harmony\0Harmony.dll</HintPath>
+      <HintPath>Plugins\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\0. Environment\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>..\..\0. Environment\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Atmosphere">
@@ -69,31 +53,22 @@
       <HintPath>Plugins\EVEManager.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Kerbalism">
-      <HintPath>Plugins\Kerbalism.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Kopernicus, Version=1.0.0.0, Culture=neutral, processorArchitecture=AMD64">
-      <HintPath>Plugins\Kopernicus.dll</HintPath>
-      <SpecificVersion>False</SpecificVersion>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
     <Reference Include="UnityEngine">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\0. Environment\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.PhysicsModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Utils">
@@ -108,17 +83,7 @@
     <Compile Include="WeatherDrivenSolarPanel.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Publicize Include="Kerbalism" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Krafs.Publicizer">
-      <Version>2.3.0</Version>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Analyzer Include="..\..\0. Environment\Managed\Assembly-CSharp.dll" />
+    <Analyzer Include="..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
