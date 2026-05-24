@@ -19,9 +19,7 @@ Experience dynamic energy fluctuations when encountering rain, snow, dust storms
 ---
 
 ## Installation
-1.  **Standard**: Drop the `WeatherDrivenSolarPanel` folder from the `GameData` folder into your game's root `GameData` directory.
-2.  **Kerbalism Users**:
-    * Copy `Extras\KerbalismSupport\WeatherDrivenSolarPanel.dll` into `GameData\WeatherDrivenSolarPanel\Plugin` and overwrite the existing file.
+Drop the `WeatherDrivenSolarPanel` folder from the `GameData` folder into your game's root `GameData` directory.
 
 ---
 
@@ -36,10 +34,6 @@ Experience dynamic energy fluctuations when encountering rain, snow, dust storms
 * **Requests**: Submit an issue or PR on GitHub for new planet pack support.
 
 ---
-## Known Issues
-- **Energy Fluctuations When Switching Tracking Targets**: When employing trackable solar panels, switching the current tracking target of the controlled vehicle may cause a brief "spike" in energy output. This will normalise once the solar panels are realigned with the new tracking target.
-
----
 ## Others
 
 ### Wear Mechanism (v5.0+)
@@ -50,7 +44,7 @@ Panels now suffer from irreversible aging. Once wear reaches **100%**, the panel
 ### Kerbalism Logic (v6.0+)
 When `switchTimeDecayWear` and `switchWeatherAffectWear` are enabled:
 * **Background Processing**: Only **Time Decay** is calculated. Weather-induced wear is ignored to optimize performance.
-* **Active/Real-time Processing**: Both **Time** and **Weather** factors are fully simulated.
+* **Active/Real-time Processing**: Weather output and weather wear are applied automatically when Kerbalism is installed. No separate Kerbalism DLL is required.
 
 > [!NOTE]
 > **Configuration**: These features are irreversible in-game but can be disabled via `WeatherDrivenSolarPanel/Config/GlobalConfig.cfg`.

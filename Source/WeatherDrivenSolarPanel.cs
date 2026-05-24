@@ -1,5 +1,4 @@
-﻿#if NoKerbalism
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 using System;
 using UnityEngine;
@@ -2608,4 +2607,3 @@ namespace WeatherDrivenSolarPanel
         #endregion
     }
 }
-#endif

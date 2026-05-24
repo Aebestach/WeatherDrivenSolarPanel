@@ -20,9 +20,7 @@
 ---
 
 ## 安装指南 (Installation)
-1.  **常规安装**：将压缩包内 `GameData` 下的 `WeatherDrivenSolarPanel` 文件夹放入游戏根目录的 `GameData` 中。
-2.  **Kerbalism 用户特别说明**：
-    * 请将 `Extras\KerbalismSupport\WeatherDrivenSolarPanel.dll` 复制并替换到 `GameData\WeatherDrivenSolarPanel\Plugin` 目录下。
+将压缩包内 `GameData` 下的 `WeatherDrivenSolarPanel` 文件夹放入游戏根目录的 `GameData` 中即可。
 
 ---
 
@@ -37,10 +35,6 @@
 * **兼容请求**：若需支持其他行星包，欢迎在 GitHub 提交 Issue 或 PR。
 
 ---
-## 已知问题 (Known Issues)
-- **切换天体时的能量波动**：当使用可追踪太阳能板时，切换当前操控载具的追踪天体可能会导致能量产出出现短时间的“激增”现象，等待太阳能板对准追踪天体后会恢复正常。
-
----
 ## 其他说明 (Others)
 
 ### 磨损机制 (Wear System)
@@ -51,7 +45,7 @@
 ### Kerbalism 适配逻辑 (v6.0+)
 在开启 `switchTimeDecayWear` 与 `switchWeatherAffectWear` 后：
 * **后台资源处理**：仅计算 **时间性损耗**。为优化性能，此时**忽略**天气对磨损的影响。
-* **非后台/实时处理**：无论是分析模式还是实时模式，**时间**与**天气**损耗将共同生效。
+* **非后台/实时处理**：安装 Kerbalism 时会自动应用天气发电影响与天气磨损，不再需要单独替换 Kerbalism 专用 DLL。
 
 > [!TIP]
 > **提示**：如需关闭此功能，请修改 `WeatherDrivenSolarPanel/Config/GlobalConfig.cfg`。

@@ -27,26 +27,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>Output\Release\</OutputPath>
+    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_Kerbalism|AnyCPU'">
-    <OutputPath>..\Extras\KerbalismSupport\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_NoKerbalism|AnyCPU'">
-    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
-    <DefineConstants>TRACE;NoKerbalism</DefineConstants>
-    <Optimize>true</Optimize>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -67,10 +51,6 @@
     </Reference>
     <Reference Include="EVEManager">
       <HintPath>Plugins\EVEManager.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Kerbalism">
-      <HintPath>Plugins\Kerbalism.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
@@ -101,16 +81,6 @@
     <Compile Include="kerbalismTVCSolarFixer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WeatherDrivenSolarPanel.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Publicize Include="Kerbalism" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Krafs.Publicizer">
-      <Version>2.3.0</Version>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll" />
