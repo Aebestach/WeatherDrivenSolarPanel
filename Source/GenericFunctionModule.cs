@@ -1,16 +1,64 @@
 ﻿using Atmosphere;
 using System;
-using System.Linq;
 using UnityEngine;
 using Utils;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WDSP_GenericFunctionModule
 {
     public class GenericFunctionModule
     {
+        public const string CategorySunny = "sunDirect";
+        public const string CategoryCloudy = "cloudyAffect";
+        public const string CategoryPrecipitation = "precipitationAffect";
+        public const string CategoryDustStorm = "dustStormAffect";
+        public const string CategoryVolcanoes = "volcanoesAffect";
+
+        public class WeatherSample
+        {
+            public string DominantLayerName = null;
+            public string Category = CategorySunny;
+            public double PowerFactor = 1.0;
+            public float SunTransmittance = 1.0f;
+            public float LocalCoverage = 0.0f;
+            public float Severity = 0.0f;
+            public float WearSeverity = 0.0f;
+            public float PrecipitationSeverity = 0.0f;
+            public float DustSeverity = 0.0f;
+            public float LightningSeverity = 0.0f;
+            public bool HasWeather = false;
+        }
+
+        private class SmoothedWeatherState
+        {
+            public double LastUT = -1.0;
+            public float Severity = 0.0f;
+            public float WearSeverity = 0.0f;
+            public double PowerFactor = 1.0;
+            public string Category = CategorySunny;
+            public string LayerName = null;
+        }
+
+        private class CachedBodyLayers
+        {
+            public int SourceCount = -1;
+            public int BuiltFrame = -1;
+            public GameScenes Scene = GameScenes.LOADING;
+            public readonly List<CloudsObject> Layers = new List<CloudsObject>();
+        }
+
+        private const int BodyLayerCacheFrameLifetime = 120;
         private static HashSet<string> excludedLayers = new HashSet<string>();
+        private static Dictionary<string, string> layerToCategoryMap = new Dictionary<string, string>();
         private static bool configLoaded = false;
+        private static Vessel cachedVessel = null;
+        private static CelestialBody cachedSun = null;
+        private static int cachedFrame = -1;
+        private static WeatherSample cachedWeatherSample = null;
+        private static readonly Dictionary<string, CachedBodyLayers> bodyLayerCache = new Dictionary<string, CachedBodyLayers>();
+        private static readonly List<CloudsObject> emptyCloudLayerList = new List<CloudsObject>();
+        private static readonly Dictionary<string, SmoothedWeatherState> smoothedStates = new Dictionary<string, SmoothedWeatherState>();
 
         private static void LoadConfig()
         {
@@ -18,6 +66,23 @@ namespace WDSP_GenericFunctionModule
             ConfigNode node = GameDatabase.Instance.GetConfigNodes("WDSP_CONFIG").FirstOrDefault();
             if (node != null)
             {
+                ConfigNode categories = node.GetNode("WEATHER_CATEGORIES");
+                if (categories != null)
+                {
+                    foreach (ConfigNode.Value value in categories.values)
+                    {
+                        string[] layers = value.value.Split(',');
+                        foreach (string layer in layers)
+                        {
+                            string trimmed = layer.Trim();
+                            if (!string.IsNullOrEmpty(trimmed) && !layerToCategoryMap.ContainsKey(trimmed))
+                            {
+                                layerToCategoryMap.Add(trimmed, value.name);
+                            }
+                        }
+                    }
+                }
+
                 ConfigNode excluded = node.GetNode("EXCLUDED_LAYERS");
                 if (excluded != null)
                 {
@@ -30,132 +95,365 @@ namespace WDSP_GenericFunctionModule
             configLoaded = true;
         }
 
-        public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
+        public static string GetCategoryByValue(string layerName)
         {
             LoadConfig();
-            layerName = null;
+            if (!string.IsNullOrEmpty(layerName) && layerToCategoryMap.TryGetValue(layerName, out string category))
+            {
+                return category;
+            }
+            return "Not Found!";
+        }
+
+        private static List<CloudsObject> GetCloudLayersForBody(string body)
+        {
+            if (string.IsNullOrEmpty(body))
+            {
+                return emptyCloudLayerList;
+            }
+
+            List<CloudsObject> allLayers = CloudsManager.GetObjectList();
+            if (allLayers == null)
+            {
+                return emptyCloudLayerList;
+            }
+
+            CachedBodyLayers cachedLayers;
+            int currentFrame = Time.frameCount;
+            GameScenes currentScene = HighLogic.LoadedScene;
+            bool needsRebuild = !bodyLayerCache.TryGetValue(body, out cachedLayers)
+                || cachedLayers.SourceCount != allLayers.Count
+                || cachedLayers.Scene != currentScene
+                || currentFrame - cachedLayers.BuiltFrame > BodyLayerCacheFrameLifetime;
+
+            if (!needsRebuild)
+            {
+                return cachedLayers.Layers;
+            }
+
+            if (cachedLayers == null)
+            {
+                cachedLayers = new CachedBodyLayers();
+                bodyLayerCache[body] = cachedLayers;
+            }
+
+            cachedLayers.Layers.Clear();
+            foreach (CloudsObject layer in allLayers)
+            {
+                if (layer.Body == body && layer.LayerRaymarchedVolume != null && !excludedLayers.Contains(layer.Name))
+                {
+                    cachedLayers.Layers.Add(layer);
+                }
+            }
+
+            cachedLayers.SourceCount = allLayers.Count;
+            cachedLayers.BuiltFrame = currentFrame;
+            cachedLayers.Scene = currentScene;
+            return cachedLayers.Layers;
+        }
+
+        public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
+        {
+            WeatherSample sample = SampleWeather(sun);
+            layerName = sample.DominantLayerName;
+            return sample.PowerFactor;
+        }
+
+        public static WeatherSample SampleWeather(CelestialBody sun)
+        {
+            LoadConfig();
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (sun == null || vessel == null)
+            {
+                return new WeatherSample();
+            }
+
+            if (cachedWeatherSample != null && cachedVessel == vessel && cachedSun == sun && cachedFrame == Time.frameCount)
+            {
+                return cachedWeatherSample;
+            }
+
+            cachedWeatherSample = CalculateWeatherSample(vessel, sun);
+            cachedVessel = vessel;
+            cachedSun = sun;
+            cachedFrame = Time.frameCount;
+
+            return cachedWeatherSample;
+        }
+
+        private static WeatherSample CalculateWeatherSample(Vessel vessel, CelestialBody sun)
+        {
+            WeatherSample sample = new WeatherSample();
+
+            if (vessel == null || sun == null || vessel.atmDensity <= 0)
+            {
+                return sample;
+            }
+
             int stepCount = 50;
             float totalDensity = 0f;
-            bool RSSflag;
-
-            Transform scaledTransform;
-            Material cloudMaterial;
-
-
-            Vector3d lightDirection;
-            Vessel vessel = FlightGlobals.ActiveVessel;
             Vector3d toSun = sun.position - vessel.GetWorldPos3D();
-            lightDirection = toSun.normalized;
+            Vector3d lightDirection = toSun.normalized;
 
-            string body = FlightGlobals.currentMainBody.bodyName;
-            var layers = CloudsManager.GetObjectList().Where(x => x.Body == body && x.LayerRaymarchedVolume != null);
-            scaledTransform = Tools.GetScaledTransform(body);
+            string body = vessel.mainBody != null ? vessel.mainBody.bodyName : FlightGlobals.currentMainBody.bodyName;
+            List<CloudsObject> layers = GetCloudLayersForBody(body);
 
+            float dominantOpticalWeight = 0.0f;
+            float dominantWeatherWeight = 0.0f;
             foreach (var layer in layers)
             {
 #if DEBUG
 				Debug.Log($"Layer Name is {layer.name}");
 #endif
-                if (!excludedLayers.Contains(layer.Name))
+                var volume = layer.LayerRaymarchedVolume;
+                if (volume == null)
                 {
-                    cloudMaterial = layer.LayerRaymarchedVolume.RaymarchedCloudMaterial;
+                    continue;
+                }
 
-                    Vector3 currentPosition = FlightGlobals.ActiveVessel.transform.position;
-                    Vector3d sphereCenter = ScaledSpace.ScaledToLocalSpace(scaledTransform.position);
-                    var planetRadius = cloudMaterial.GetFloat("planetRadius");
-                    float innerSphereRadius = Mathf.Max(planetRadius, cloudMaterial.GetFloat("innerSphereRadius"));
-                    float outerSphereRadius = Mathf.Max(planetRadius, cloudMaterial.GetFloat("outerSphereRadius"));
+                string category = GetCategoryByValue(layer.Name);
+                Vector3 currentPosition = vessel.transform.position;
+                Vector3d sphereCenter = volume.ParentTransform != null ? volume.ParentTransform.position : vessel.mainBody.transform.position;
+                float innerSphereRadius = Mathf.Max(volume.PlanetRadius, volume.InnerSphereRadius);
+                float outerSphereRadius = Mathf.Max(volume.PlanetRadius, volume.OuterSphereRadius);
 
-                    var innerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, innerSphereRadius);
-                    var outerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, outerSphereRadius);
-                    var startDistance = Mathf.Max(0, Mathf.Min(innerIntersect, outerIntersect));
-                    var endDistance = Mathf.Max(0, Mathf.Max(innerIntersect, outerIntersect));
-                    Vector3 startPos = currentPosition + lightDirection * startDistance;
-                    Vector3 endPos = currentPosition + lightDirection * endDistance;
+                float innerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, innerSphereRadius);
+                float outerIntersect = (float)IntersectSphere(currentPosition, lightDirection, sphereCenter, outerSphereRadius);
+                float startDistance = Mathf.Max(0, Mathf.Min(innerIntersect, outerIntersect));
+                float endDistance = Mathf.Max(0, Mathf.Max(innerIntersect, outerIntersect));
+                Vector3 startPos = currentPosition + (Vector3)lightDirection * startDistance;
+                Vector3 endPos = currentPosition + (Vector3)lightDirection * endDistance;
 
-                    float stepSize = (endPos - startPos).magnitude / stepCount;
-                    currentPosition = startPos;
-                    for (int x = 0; x < stepCount; x++)
+                float stepSize = (endPos - startPos).magnitude / stepCount;
+                if (float.IsNaN(stepSize) || float.IsInfinity(stepSize) || stepSize <= 0f)
+                {
+                    SampleLocalWeather(vessel, layer.Name, category, volume, ref sample, ref dominantWeatherWeight);
+                    continue;
+                }
+
+                currentPosition = startPos;
+                for (int x = 0; x < stepCount; x++)
+                {
+                    float coverageAtPosition = volume.SampleCoverage(currentPosition, out float cloudType, false);
+
+                    if (coverageAtPosition > 0f)
                     {
-                        float coverageAtposition = layer.LayerRaymarchedVolume.SampleCoverage(currentPosition, out float CloudType, false);
+                        float interpolatedDensity = GetInterpolatedDensity(volume, cloudType);
+                        float opticalWeight = interpolatedDensity * coverageAtPosition * stepSize;
+                        totalDensity += opticalWeight;
 
-                        if (coverageAtposition > 0f)
+                        if (opticalWeight > dominantOpticalWeight)
                         {
-                            layerName = layer.Name;
-                            CloudType *= layer.LayerRaymarchedVolume.CloudTypes.Count - 1;
-                            int currentCloudType = (int)CloudType;
-                            int nextCloudType = Math.Min(currentCloudType + 1, layer.LayerRaymarchedVolume.CloudTypes.Count - 1);
-
-                            var cloudTypes = layer.LayerRaymarchedVolume.CloudTypes;
-                            float interpolatedDensity = Mathf.Lerp(cloudTypes[currentCloudType].Density, cloudTypes[nextCloudType].Density, CloudType);
-
-                            totalDensity += interpolatedDensity * coverageAtposition * stepSize;
+                            dominantOpticalWeight = opticalWeight;
+                            sample.DominantLayerName = layer.Name;
+                            if (category != "Not Found!")
+                            {
+                                sample.Category = category;
+                            }
                         }
-
-                        currentPosition += stepSize * lightDirection;
                     }
+
+                    currentPosition += stepSize * (Vector3)lightDirection;
                 }
+
+                SampleLocalWeather(vessel, layer.Name, category, volume, ref sample, ref dominantWeatherWeight);
             }
 
-            float lightTransmittance = (float)Math.Exp(-totalDensity);
+            sample.SunTransmittance = Mathf.Clamp01((float)Math.Exp(-totalDensity));
+            sample.PowerFactor = CalculatePowerFactor(sample.SunTransmittance, sample.Category);
 
-            double middleValue = 1.0;
-            switch (layerName)
+            float opticalSeverity = Mathf.Clamp01(1.0f - (float)sample.PowerFactor);
+            sample.Severity = Mathf.Max(sample.Severity, opticalSeverity);
+            sample.HasWeather = sample.Severity > 0.05f || sample.PowerFactor < 0.98;
+
+            if (sample.Category == CategoryCloudy)
             {
-                case "TemperateCumulus":
-                case "TemperateAltoStratus":
-                case "Cirrus":
-                case "TemperateWeather":
-                case "Storms-Dust":
-                case "Stable-Dust":
-                    RSSflag = true;
-                    break;
+                sample.WearSeverity = 0.0f;
+            }
+            else if (sample.WearSeverity <= 0.0f)
+            {
+                sample.WearSeverity = sample.Severity;
+            }
+
+            return SmoothSample(vessel, sun, sample);
+        }
+
+        private static void SampleLocalWeather(Vessel vessel, string layerName, string category, CloudsRaymarchedVolume volume, ref WeatherSample sample, ref float dominantWeatherWeight)
+        {
+            Vector3 center = volume.ParentTransform != null ? volume.ParentTransform.position : vessel.mainBody.transform.position;
+            Vector3 radialDirection = (vessel.transform.position - center).normalized;
+            float vesselRadius = (vessel.transform.position - center).magnitude;
+            float startRadius = Mathf.Max(vesselRadius, volume.InnerSphereRadius);
+            float endRadius = volume.OuterSphereRadius;
+
+            if (startRadius > endRadius || radialDirection == Vector3.zero)
+            {
+                return;
+            }
+
+            const int localStepCount = 8;
+            for (int i = 0; i < localStepCount; i++)
+            {
+                float radius = Mathf.Lerp(startRadius, endRadius, localStepCount == 1 ? 0.0f : (float)i / (localStepCount - 1));
+                Vector3 samplePosition = center + radialDirection * radius;
+                float coverage = volume.SampleCoverage(samplePosition, out float cloudType, false);
+                if (coverage <= 0f)
+                {
+                    continue;
+                }
+
+                float density = GetInterpolatedDensity(volume, cloudType);
+                float precipitation = Mathf.Max(volume.GetInterpolatedCloudTypeDropletsDensity(cloudType), volume.GetInterpolatedCloudTypeWetSurfacesDensity(cloudType));
+                float lightning = volume.GetInterpolatedCloudTypeLightningFrequency(cloudType);
+                float particle = volume.GetInterpolatedCloudTypeParticleFieldDensity(cloudType);
+
+                string inferredCategory = InferCategory(category, precipitation, lightning);
+                float weatherWeight = CalculateWeatherWeight(inferredCategory, coverage, density, precipitation, lightning, particle);
+                if (weatherWeight <= 0f)
+                {
+                    continue;
+                }
+
+                sample.LocalCoverage = Mathf.Max(sample.LocalCoverage, coverage);
+                sample.PrecipitationSeverity = Mathf.Max(sample.PrecipitationSeverity, coverage * Mathf.Clamp01(Mathf.Max(precipitation, lightning)));
+                sample.DustSeverity = Mathf.Max(sample.DustSeverity, inferredCategory == CategoryDustStorm ? coverage * Mathf.Clamp01(Mathf.Max(particle, density)) : 0.0f);
+                sample.LightningSeverity = Mathf.Max(sample.LightningSeverity, coverage * Mathf.Clamp01(lightning));
+
+                if (weatherWeight > dominantWeatherWeight)
+                {
+                    dominantWeatherWeight = weatherWeight;
+                    sample.DominantLayerName = layerName;
+                    sample.Category = inferredCategory;
+                    sample.Severity = Mathf.Clamp01(weatherWeight);
+                    sample.WearSeverity = CalculateWearSeverity(inferredCategory, weatherWeight);
+                }
+            }
+        }
+
+        private static string InferCategory(string configuredCategory, float precipitation, float lightning)
+        {
+            if (configuredCategory == CategoryPrecipitation || configuredCategory == CategoryDustStorm || configuredCategory == CategoryVolcanoes || configuredCategory == CategoryCloudy)
+            {
+                return configuredCategory;
+            }
+
+            if (Mathf.Max(precipitation, lightning) > 0.05f)
+            {
+                return CategoryPrecipitation;
+            }
+
+            return CategoryCloudy;
+        }
+
+        private static float CalculateWeatherWeight(string category, float coverage, float density, float precipitation, float lightning, float particle)
+        {
+            float baseIntensity = Mathf.Clamp01(coverage * Mathf.Max(0.35f, density));
+
+            switch (category)
+            {
+                case CategoryPrecipitation:
+                    return Mathf.Clamp01(baseIntensity * Mathf.Max(1.0f, precipitation + lightning));
+                case CategoryDustStorm:
+                    return Mathf.Clamp01(baseIntensity * Mathf.Max(1.0f, particle));
+                case CategoryVolcanoes:
+                    return Mathf.Clamp01(baseIntensity * 1.25f);
+                case CategoryCloudy:
+                    return Mathf.Clamp01(baseIntensity * 0.75f);
                 default:
-                    RSSflag = false;
+                    return baseIntensity;
+            }
+        }
+
+        private static float CalculateWearSeverity(string category, float weatherWeight)
+        {
+            switch (category)
+            {
+                case CategoryPrecipitation:
+                    return Mathf.Clamp01(weatherWeight * 0.85f);
+                case CategoryDustStorm:
+                    return Mathf.Clamp01(weatherWeight);
+                case CategoryVolcanoes:
+                    return Mathf.Clamp01(weatherWeight * 1.15f);
+                default:
+                    return 0.0f;
+            }
+        }
+
+        private static double CalculatePowerFactor(float sunTransmittance, string category)
+        {
+            if (sunTransmittance >= 0.999f)
+            {
+                return 1.0;
+            }
+
+            double factor = Math.Sqrt(Math.Max(0.0, sunTransmittance));
+            switch (category)
+            {
+                case CategoryDustStorm:
+                case CategoryVolcanoes:
+                    factor = Math.Min(factor, 0.9);
+                    break;
+                case CategoryPrecipitation:
+                    factor = Math.Min(factor, 0.95);
                     break;
             }
 
-            if (RSSflag == true)
+            return Mathf.Clamp01((float)factor);
+        }
+
+        private static WeatherSample SmoothSample(Vessel vessel, CelestialBody sun, WeatherSample sample)
+        {
+            string key = vessel.id.ToString() + ":" + sun.flightGlobalsIndex.ToString();
+            double ut = Planetarium.GetUniversalTime();
+
+            if (!smoothedStates.TryGetValue(key, out SmoothedWeatherState state))
             {
-                //Use of RSS versions
-                if (lightTransmittance == 1f)
-                {
-                    middleValue = 1f;
-                }
-                else if (layerName == "Storms-Dust" || layerName == "Stable-Dust")
-                {
-                    middleValue = Mathf.Sqrt(Mathf.Sqrt(lightTransmittance));
-                    middleValue = Mathf.Clamp((float)middleValue, 0.4f, 0.75f);
-                }
-                else
-                {
-                    middleValue = middleValue * 0.8f;
-                }
-            }
-            else
-            {
-                //Use of stock versions
-                if (lightTransmittance == 1f)
-                {
-                    middleValue = 1f;
-                }
-                else if (lightTransmittance <= 0.0001f)
-                {
-                    middleValue = 0f;
-                }
-                else if (lightTransmittance > 0.001f && lightTransmittance <= 0.4f)
-                {
-                    //Scope limited to (0.1,0.53)
-                    middleValue = 0.55f * lightTransmittance / 0.41f;
-                    middleValue = Mathf.Clamp((float)middleValue, 0.1f, 0.53f);
-                }
-                else if (lightTransmittance > 0.4f && lightTransmittance < 1f)
-                {
-                    middleValue = Mathf.Max(0.55f, Mathf.Sqrt(lightTransmittance));
-                }
+                state = new SmoothedWeatherState();
+                smoothedStates.Add(key, state);
             }
 
-            return middleValue;
+            float alpha = 1.0f;
+            if (state.LastUT >= 0.0)
+            {
+                float deltaTime = Mathf.Clamp((float)(ut - state.LastUT), 0.0f, 60.0f);
+                alpha = 1.0f - Mathf.Exp(-deltaTime / 8.0f);
+            }
+
+            state.Severity = Mathf.Lerp(state.Severity, sample.Severity, alpha);
+            state.WearSeverity = Mathf.Lerp(state.WearSeverity, sample.WearSeverity, alpha);
+            state.PowerFactor = state.PowerFactor + (sample.PowerFactor - state.PowerFactor) * alpha;
+            state.LastUT = ut;
+
+            if (sample.Severity >= state.Severity * 0.85f || state.Category == CategorySunny)
+            {
+                state.Category = sample.Category;
+                state.LayerName = sample.DominantLayerName;
+            }
+
+            sample.Severity = state.Severity;
+            sample.WearSeverity = state.WearSeverity;
+            sample.PowerFactor = Mathf.Clamp01((float)state.PowerFactor);
+            sample.Category = state.Category;
+            sample.DominantLayerName = state.LayerName ?? sample.DominantLayerName;
+            sample.HasWeather = sample.Severity > 0.05f || sample.PowerFactor < 0.98;
+
+            return sample;
+        }
+
+        private static float GetInterpolatedDensity(CloudsRaymarchedVolume volume, float cloudType)
+        {
+            if (volume.CloudTypes == null || volume.CloudTypes.Count == 0)
+            {
+                return 0.0f;
+            }
+
+            cloudType = Mathf.Clamp01(cloudType);
+            cloudType *= volume.CloudTypes.Count - 1;
+            int currentCloudType = Mathf.Clamp((int)cloudType, 0, volume.CloudTypes.Count - 1);
+            int nextCloudType = Mathf.Min(currentCloudType + 1, volume.CloudTypes.Count - 1);
+            float cloudFrac = cloudType - currentCloudType;
+
+            return Mathf.Lerp(volume.CloudTypes[currentCloudType].Density, volume.CloudTypes[nextCloudType].Density, cloudFrac);
         }
 
         private static double IntersectSphere(Vector3d origin, Vector3d d, Vector3d sphereCenter, double r)

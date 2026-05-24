@@ -361,7 +361,13 @@ namespace WeatherDrivenSolarPanel
                     {
                         // Core: Angle of the star * Occlusion of the star * (Actual flux of the star / Reference flux)
                         double starDistanceFactor = sunInfo.SolarFlux / Sim.SolarFluxAtHome;
-                        powerFactor += sunCosineFactor * sunOccludedFactor * starDistanceFactor;
+                        double starWeatherPowerFactor = 1.0;
+                        if (__instance.vessel.atmDensity > 0)
+                        {
+                            starWeatherPowerFactor = GenericFunctionModule.SampleWeather(sunInfo.SunData.body).PowerFactor;
+                        }
+
+                        powerFactor += sunCosineFactor * sunOccludedFactor * starDistanceFactor * starWeatherPowerFactor;
 
                     }
                     else if (sunInfo == __instance.trackedSunInfo)
@@ -378,33 +384,37 @@ namespace WeatherDrivenSolarPanel
 
             // get Weather Impact factor (Weather Impact are not calculated in analysis mode)
             double WeatherImpactFactor = 1.0;
-            if (__instance.vessel.atmDensity > 0 && switchWeatherAffectWear)
+            GenericFunctionModule.WeatherSample weatherSample = null;
+            if (__instance.vessel.atmDensity > 0)
             {
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(__instance.trackedSunInfo.sunData.body, out string NlayerName);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
-                //Debug.Log($"layerName is {layerName}");
-                //Debug.Log($"GetCategoryByValue is {GetCategoryByValue(layerName)}");
-                if (__instance.vessel != null
-                    && (GetCategoryByValue(layerName) != "cloudyAffect")
-                    && WeatherImpactFactor < 0.9f
-                    && (__instance.vessel.situation != Vessel.Situations.PRELAUNCH))
-                {
+                weatherSample = GenericFunctionModule.SampleWeather(__instance.trackedSunInfo.sunData.body);
+                WeatherImpactFactor = vd.EnvIsAnalytic ? weatherSample.PowerFactor : 1.0;
+                layerName = weatherSample.DominantLayerName;
+                statusChangeValue = weatherSample.Severity;
 
+                if (switchWeatherAffectWear)
+                {
                     if (__instance.state == PanelState.Extended || __instance.state == PanelState.ExtendedFixed || __instance.state == PanelState.Static)
                     {
-                        wdsp.totalWeatherTime += Planetarium.GetUniversalTime() - wdsp.timeWeather;
-                        wdsp.timeWeather = Planetarium.GetUniversalTime();
+                        double currentTime = Planetarium.GetUniversalTime();
+                        if (__instance.vessel != null
+                            && weatherSample.WearSeverity > 0.05f
+                            && (__instance.vessel.situation != Vessel.Situations.PRELAUNCH))
+                        {
+                            if (wdsp.timeWeather > 0)
+                            {
+                                wdsp.totalWeatherTime += (currentTime - wdsp.timeWeather) * weatherSample.WearSeverity;
+                            }
+                        }
+                        wdsp.timeWeather = currentTime;
                     }
+                    wdsp.weatherPanelStatus = CalculateStatus(wdsp, weatherSample, wdsp.totalWeatherTime);
                 }
-                wdsp.weatherPanelStatus = CalculateStatus(wdsp, wdsp.totalWeatherTime);
-            }
-            else if (switchWeatherAffectWear == false)
-            {
-                WeatherImpactFactor = GenericFunctionModule.VolumetricCloudTransmittance(__instance.trackedSunInfo.sunData.body, out string NlayerName);
-                layerName = NlayerName;
-                statusChangeValue = WeatherImpactFactor;
-                wdsp.weatherPanelStatus = CalculateStatus(wdsp);
+                else
+                {
+                    wdsp.wearFactorTVC = 1.0;
+                    wdsp.weatherPanelStatus = CalculateStatus(wdsp, weatherSample);
+                }
             }
 
             // get wear factor (time based output degradation)
@@ -459,15 +469,7 @@ namespace WeatherDrivenSolarPanel
 
         public static string GetCategoryByValue(string value)
         {
-            if (string.IsNullOrEmpty(value)) return "Not Found!";
-
-            if (reverseCategoryDictionary == null) InitReverseDictionary();
-            
-            if (reverseCategoryDictionary.TryGetValue(value, out string category))
-            {
-                return category;
-            }
-            return "Not Found!";
+            return GenericFunctionModule.GetCategoryByValue(value);
         }
 
         private static void InitReverseDictionary()
@@ -487,49 +489,54 @@ namespace WeatherDrivenSolarPanel
             }
         }
 
-        public static string CalculateStatus(WDSPWeatherStatusDisplay wdsp, double weatherTime = -1.0)
+        public static string CalculateStatus(WDSPWeatherStatusDisplay wdsp, GenericFunctionModule.WeatherSample sample, double weatherTime = -1.0)
         {
-            string category = GetCategoryByValue(layerName);
+            string category = sample != null ? sample.Category : GetCategoryByValue(layerName);
+            float severity = sample != null ? sample.Severity : Mathf.Clamp01((float)(1.0 - statusChangeValue));
+            bool hasWeather = sample != null ? sample.HasWeather : severity > 0.05f;
             string statusText = WDSP_TVC_sunDirect;
             string color = "FF7F00";
             bool updateWear = weatherTime >= 0;
 
-            switch (category)
+            if (hasWeather)
             {
-                case "cloudyAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        statusText = WDSP_TVC_cloudyAffect;
-                        color = "5F9F9F";
-                    }
-                    break;
-                case "precipitationAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        if (updateWear && statusChangeValue < 0.45f)
-                            wdsp.wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
-                        statusText = WDSP_TVC_precipitationAffect;
-                        color = "5F9F9F";
-                    }
-                    break;
-                case "dustStormAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        if (updateWear && statusChangeValue < 0.75f)
-                            wdsp.wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
-                        statusText = WDSP_TVC_dustStormAffect;
-                        color = "5F9F9F";
-                    }
-                    break;
-                case "volcanoesAffect":
-                    if (statusChangeValue < 0.8f)
-                    {
-                        if (updateWear && statusChangeValue < 0.65f)
-                            wdsp.wearFactorTVC = Lib.Clamp(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)), 0.0, 1.0);
-                        statusText = WDSP_TVC_volcanoesAffect;
-                        color = "5F9F9F";
-                    }
-                    break;
+                switch (category)
+                {
+                    case GenericFunctionModule.CategoryCloudy:
+                        if (severity > 0.08f)
+                        {
+                            statusText = WDSP_TVC_cloudyAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryPrecipitation:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_precipitationAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryDustStorm:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_dustStormAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                    case GenericFunctionModule.CategoryVolcanoes:
+                        if (severity > 0.05f)
+                        {
+                            if (updateWear && sample != null && sample.WearSeverity > 0.05f)
+                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                            statusText = WDSP_TVC_volcanoesAffect;
+                            color = "5F9F9F";
+                        }
+                        break;
+                }
             }
             return $"<color=#{color}>{statusText}</color>";
         }
