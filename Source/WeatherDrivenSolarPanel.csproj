@@ -33,16 +33,12 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>Plugins\0Harmony.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Atmosphere">
@@ -55,20 +51,20 @@
     </Reference>
     <Reference Include="System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
     <Reference Include="UnityEngine">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>..\..\..\KSPDLL\KSP_x64_Data\UnityEngine.PhysicsModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Utils">
@@ -83,7 +79,12 @@
     <Compile Include="WeatherDrivenSolarPanel.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll" />
+    <Analyzer Include="..\..\..\KSPDLL\KSP_x64_Data\Assembly-CSharp.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony">
+      <Version>2.4.2</Version>
+    </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -471,7 +471,7 @@ namespace WeatherDrivenSolarPanel
         bool switchTimeDecayWear;
         bool switchWeatherAffectWear;
 
-        public static string resourceName = null;
+        private string resourceName = null;
         #endregion
 
         #region KSP/Unity methods + background update
@@ -651,6 +651,20 @@ namespace WeatherDrivenSolarPanel
                     {
                         case PanelState.Retracted: panelStatus = SolarPanelFixer_retracted; break;//"Retracted"
                         case PanelState.Extending: panelStatus = SolarPanelFixer_extending; break;//"Extending"
+                        case PanelState.Extended:
+                        case PanelState.ExtendedFixed:
+                        case PanelState.Static:
+                            if (exposureStatus == ExposureState.BadOrientation)
+                                panelStatus = "<color=#ff2222>" + SolarPanelFixer_badorientation + "</color>";
+                            else if (exposureStatus == ExposureState.InShadow || exposureStatus == ExposureState.Eclipse)
+                                panelStatus = "<color=#ff2222>" + SolarPanelFixer_inshadow + "</color>";
+                            else if (exposureStatus == ExposureState.OccludedTerrain)
+                                panelStatus = "<color=#ff2222>" + SolarPanelFixer_occludedbyenvironment + "</color>";
+                            else if (exposureStatus == ExposureState.OccludedPart && mainOccludingPart != null)
+                                panelStatus = BuildString("<color=#ff2222>", Localizer.Format(SolarPanelFixer_occludedby, mainOccludingPart), "</color>");
+                            else
+                                panelStatus = "<color=#ff2222>" + SolarPanelFixer_invalidstate + "</color>";
+                            break;
                         case PanelState.Retracting: panelStatus = SolarPanelFixer_retracting; break;//"Retracting"
                         case PanelState.Broken: panelStatus = SolarPanelFixer_broken; break;//"Broken"
                         case PanelState.Failure: panelStatus = SolarPanelFixer_failure; break;//"Failure"
@@ -1719,7 +1733,7 @@ namespace WeatherDrivenSolarPanel
                 panelModule.Fields["flowRate"].guiActive = false;
                 panelModule.Fields["status"].guiActive = false;
 
-                resourceName = panelModule.resourceName;
+                fixerModule.resourceName = panelModule.resourceName;
 
                 if (sunCatcherPivot == null)
                     sunCatcherPivot = panelModule.part.FindModelComponent<Transform>(panelModule.pivotName);
@@ -1732,11 +1746,19 @@ namespace WeatherDrivenSolarPanel
                     return false;
                 }
 
-                // avoid rate lost due to OnStart being called multiple times in the editor
-                if (panelModule.resHandler.outputResources[0].rate == 0.0)
-                    return true;
+                // resHandler may not be populated yet when weatherDrivenSolarPanel OnStart runs before MDSP;
+                // fall back to cfg chargeRate (stock panels still define this even though FixedUpdate ignores it)
+                double rate = panelModule.resHandler.outputResources[0].rate;
+                if (rate == 0.0)
+                    rate = panelModule.chargeRate;
 
-                nominalRate = panelModule.resHandler.outputResources[0].rate;
+                if (rate == 0.0)
+                {
+                    nominalRate = 0.0;
+                    return true;
+                }
+
+                nominalRate = rate;
                 // reset target module rate
                 // - This can break mods that evaluate solar panel output for a reason or another (eg: AmpYear, BonVoyage).
                 //   We fix that by exploiting the fact that resHandler was introduced in KSP recently, and most of
@@ -1811,8 +1833,9 @@ namespace WeatherDrivenSolarPanel
 
             public override PanelState GetState()
             {
-                // Detect modified TotalEnergyRate (B9PS switching of the stock module or ROSolar built-in switching)
-                if (panelModule.resHandler.outputResources[0].rate != 0.0)
+                // Detect modified rate (B9PS switching, ROSolar built-in switching, or late MDSP init)
+                if (panelModule.resHandler.outputResources[0].rate != 0.0
+                    || (fixerModule.nominalRate == 0.0 && panelModule.chargeRate > 0.0))
                 {
                     OnStart(false, ref fixerModule.nominalRate);
                 }
