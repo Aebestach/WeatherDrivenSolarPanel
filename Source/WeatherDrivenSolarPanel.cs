@@ -146,11 +146,9 @@ namespace WeatherDrivenSolarPanel
 
         private static Dictionary<string, string> _layerToCategoryMap;
         private static bool _categoryConfigLoaded = false;
-        private List<CelestialBody> _occludingBodiesCache = new List<CelestialBody>();
-        private List<WDSPStarInfo> _starListCache = new List<WDSPStarInfo>();
         private static bool _curvesInitialized = false;
 
-        private class WDSPStarInfo
+        public class WDSPStarInfo
         {
             private const BindingFlags ReflectionFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
             private static Type kopernicusStarType = null;
@@ -831,34 +829,18 @@ namespace WeatherDrivenSolarPanel
                 return; 
             }
 
-            Vessel vesselActive = FlightGlobals.ActiveVessel;
-            Vector3d position = VesselPosition(vesselActive);
-            
-            // Reusing cached list
-            _starListCache.Clear();
-
-            Vector3d direction;
-            double distance;
-            WeatherImpactFactor = 1.0;
-            
-            GetLargeBodiesNonAlloc(position, _occludingBodiesCache);
-
-            List<WDSPStarInfo> stars = WDSPStarInfo.GetStars();
-            for (Int32 s = 0; s < stars.Count; s++)
+            VesselSolarContext solarContext = VesselSolarContext.GetOrCompute(vessel);
+            if (solarContext == null)
             {
-                WDSPStarInfo starL = stars[s];
-                // Optimization: Skip normalized calculation if not needed for the check
-                // Vector3d dIRECTION = (starL.Sun.position - position).normalized; 
-                
-                if (IsBodyVisible(vessel, position, starL.Sun, _occludingBodiesCache, out direction, out distance))
-                {
-                    _starListCache.Add(starL);
-                }
+                return;
             }
 
-            if (_starListCache.Count > 0)
+            Vector3d position = solarContext.Position;
+            List<weatherDrivenSolarPanel.WDSPStarInfo> stars = weatherDrivenSolarPanel.WDSPStarInfo.GetStars();
+
+            if (solarContext.VisibleStars.Count > 0)
             {
-                WDSPStarInfo brightestStar = WDSPStarInfo.GetBrightest(position, _starListCache);
+                weatherDrivenSolarPanel.WDSPStarInfo brightestStar = solarContext.GetBrightestVisibleStar();
                 if (brightestStar != null && !manualTracking && trackedSun != brightestStar.Sun)
                 {
                     trackedSunIndex = brightestStar.Sun.flightGlobalsIndex;
@@ -868,20 +850,7 @@ namespace WeatherDrivenSolarPanel
             }
             else
             {
-                // Optimization: Find closest star without sorting everything
-                WDSPStarInfo closestStar = null;
-                double closestDistSqr = double.MaxValue;
-                
-                for (int i = 0; i < stars.Count; i++)
-                {
-                    double d2 = Vector3d.SqrMagnitude(vessel.transform.position - stars[i].Sun.position);
-                    if (d2 < closestDistSqr)
-                    {
-                        closestDistSqr = d2;
-                        closestStar = stars[i];
-                    }
-                }
-
+                weatherDrivenSolarPanel.WDSPStarInfo closestStar = solarContext.GetClosestStar(stars);
                 if (closestStar != null && !manualTracking && trackedSun != closestStar.Sun)
                 {
                     trackedSunIndex = closestStar.Sun.flightGlobalsIndex;
@@ -891,90 +860,37 @@ namespace WeatherDrivenSolarPanel
             }
 
             exposureFactor = 0.0;
-            Double totalFlux = 0;
+            Double totalFlux = solarContext.TotalFlux;
             Double totalFlow = 0;
             double totalSunExposure = 0.0;
             string occludingPart = null;
-            // iterate over all stars, compute the exposure factor
-            for (Int32 s = 0; s < stars.Count; s++)
+            WeatherImpactFactor = 1.0;
+
+            for (Int32 s = 0; s < solarContext.StarCount; s++)
             {
-                WDSPStarInfo star = stars[s];
-                // Use this star
-                star.ApplyPhysics();
-
-                Vector3d sunDirection = (star.Sun.position - position).normalized;
-
-                // Add to TotalFlux and EC tally
-                float panelEffectivness = 0;
-                // Now for some fancy atmospheric math
-                float atmoDensityMult = 1;
-                float atmoAngleMult = 1;
-                float tempMult = 1;
-                if (vessel.atmDensity > 0)
-                {
-                    float horizonAngle = (float)Math.Acos(FlightGlobals.currentMainBody.Radius /
-                        (FlightGlobals.currentMainBody.Radius + FlightGlobals.ship_altitude));
-
-                    float sunZenithAngleDeg = Vector3.Angle(FlightGlobals.upAxis, star.Sun.position);
-
-                    Double gravAccelParameter = (vessel.mainBody.gravParameter /
-                        Math.Pow(vessel.mainBody.Radius + FlightGlobals.ship_altitude, 2));
-
-                    float massOfAirColumn = (float)(FlightGlobals.getStaticPressure() / gravAccelParameter);
-
-                    tempMult = temperatureEfficCurve.Evaluate((float)vessel.atmosphericTemperature);
-                    atmoDensityMult = AtmosphericAttenutationAirMassMultiplier.Evaluate(massOfAirColumn);
-                    atmoAngleMult = AtmosphericAttenutationSolarAngleMultiplier.Evaluate(sunZenithAngleDeg);
-                }
-                double starFlux = 0;
-                //Calculate flux
-                double starFluxAtHome = 0;
-                if (PhysicsGlobals.SolarLuminosityAtHome != 0)
-                {
-                    starFluxAtHome = 1360 / PhysicsGlobals.SolarLuminosityAtHome;
-                }
-                starFlux = star.CalculateFluxAt(vessel) * starFluxAtHome;
-
-                totalFlux += starFlux;
+                StarSolarData starData = solarContext.StarData[s];
 
                 double sunCosineFactor = 0.0;
                 double sunOccludedFactor = 0.0;
-                occludingPart = null;
-                // Compute final aggregate exposure factor
-                double sunExposureFactor = 0.0;
+                CalExposureAndCosin(starData.Star, starData.SunDirection, out sunCosineFactor, out sunOccludedFactor, out occludingPart, out exposureStatus);
 
-                CalExposureAndCosin(star, sunDirection, out sunCosineFactor, out sunOccludedFactor, out occludingPart, out exposureStatus);
-                sunExposureFactor = sunCosineFactor * sunOccludedFactor;
+                double sunExposureFactor = sunCosineFactor * sunOccludedFactor;
                 totalSunExposure += sunExposureFactor;
-                if (star.Sun.Equals(trackedSun))
+                if (starData.Star.Sun.Equals(trackedSun))
                 {
                     exposureFactor = sunExposureFactor;
                 }
 
-                if ((sunExposureFactor != 0) && (tempMult != 0) && (atmoAngleMult != 0) && (atmoDensityMult != 0))
+                if (sunExposureFactor != 0.0 && starData.CanProduce)
                 {
-                    panelEffectivness = ((float)nominalRate / 24.3999996185303f) / 56.37091313591871f * (float)sunExposureFactor * tempMult *
-                                            atmoAngleMult *
-                                            atmoDensityMult; //56.blabla is a weird constant we use to turn flux into EC
-                }
-                if (starFluxAtHome > 0)
-                {
-                    double starWeatherPowerFactor = 1.0;
-                    if (vessel.atmDensity > 0)
-                    {
-                        starWeatherPowerFactor = GenericFunctionModule.SampleWeather(star.Sun).PowerFactor;
-                    }
-
-                    totalFlow += ((starFlux) * panelEffectivness * starWeatherPowerFactor) /
-                                 (1360 / PhysicsGlobals.SolarLuminosityAtHome);
+                    totalFlow += starData.SharedFlowScale * nominalRate * sunExposureFactor;
                 }
             }
 
-            WeatherImpactFactor = 1.0;
             latestWeatherSample = null;
-            if (vessel.atmDensity > 0)
+            if (solarContext.InAtmosphere)
             {
-                latestWeatherSample = GenericFunctionModule.SampleWeather(trackedSun);
+                latestWeatherSample = solarContext.GetWeatherSample(trackedSun);
                 WeatherImpactFactor = latestWeatherSample.PowerFactor;
                 layerName = latestWeatherSample.DominantLayerName;
                 statusChangeValue = latestWeatherSample.Severity;
@@ -1003,7 +919,7 @@ namespace WeatherDrivenSolarPanel
                     calculateStatus(latestWeatherSample);
                 }
             }
-            else if (vessel.atmDensity <= 0)
+            else
             {
                 Fields["weatherPanelStatus"].guiActive = false;
             }
@@ -1038,7 +954,9 @@ namespace WeatherDrivenSolarPanel
             // get final output rate in EC/s
             currentOutput = totalFlow;
             wearFactor = wearFactorTime * wearFactorTVC;
-            bool trackedSunVisiblefactor = IsBodyVisible(vessel, position, trackedSun, _occludingBodiesCache, out direction, out distance);
+            Vector3d direction;
+            double distance;
+            bool trackedSunVisiblefactor = IsBodyVisible(vessel, position, trackedSun, solarContext.OccludingBodies, out direction, out distance);
             // sunNotVisible = true:  The star is occluded (in shadow, cannot see the sun)
             // sunNotVisible = false: The star is visible (in sunlight, clear line of sight)
             bool sunNotVisible = trackedSunVisiblefactor == false;
@@ -1479,54 +1397,11 @@ namespace WeatherDrivenSolarPanel
             weatherPanelStatus = "<color=#" + color + ">" + statusText + "</color>";
         }
 
-        private static bool? _globalSwitchTimeDecayWear = null;
-        private static bool? _globalSwitchWeatherAffectWear = null;
-
         public void LoadConfig()
         {
-            if (_globalSwitchTimeDecayWear.HasValue && _globalSwitchWeatherAffectWear.HasValue)
-            {
-                switchTimeDecayWear = _globalSwitchTimeDecayWear.Value;
-                switchWeatherAffectWear = _globalSwitchWeatherAffectWear.Value;
-            }
-            else
-            {
-                string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/globalConfig.cfg";
-
-                ConfigNode configNode = ConfigNode.Load(configFilePath);
-                if (configNode != null)
-                {
-                    ConfigNode myPluginNode = configNode.GetNode("WDSP");
-                    if (myPluginNode != null)
-                    {
-                        if (myPluginNode.HasValue("switchTimeDecayWear"))
-                        {
-                            switchTimeDecayWear = bool.Parse(myPluginNode.GetValue("switchTimeDecayWear"));
-                            _globalSwitchTimeDecayWear = switchTimeDecayWear;
-                        }
-                        else
-                        {
-                            _globalSwitchTimeDecayWear = switchTimeDecayWear; // Default
-                        }
-
-                        if (myPluginNode.HasValue("switchWeatherAffectWear"))
-                        {
-                            switchWeatherAffectWear = bool.Parse(myPluginNode.GetValue("switchWeatherAffectWear"));
-                            _globalSwitchWeatherAffectWear = switchWeatherAffectWear;
-                        }
-                        else
-                        {
-                            _globalSwitchWeatherAffectWear = switchWeatherAffectWear; // Default
-                        }
-                    }
-                }
-                else
-                {
-                    Debug.LogError("Failed to load config file: " + configFilePath);
-                    _globalSwitchTimeDecayWear = switchTimeDecayWear;
-                    _globalSwitchWeatherAffectWear = switchWeatherAffectWear;
-                }
-            }
+            WDSPGlobalConfig.EnsureLoaded();
+            switchTimeDecayWear = WDSPGlobalConfig.SwitchTimeDecayWear;
+            switchWeatherAffectWear = WDSPGlobalConfig.SwitchWeatherAffectWear;
 
             if (switchTimeDecayWear && switchWeatherAffectWear)
             {
@@ -1540,6 +1415,24 @@ namespace WeatherDrivenSolarPanel
             {
                 timeTimer = 0;
             }
+        }
+
+        internal static float EvaluateTemperatureEfficMult(float temperature)
+        {
+            InitCurves();
+            return temperatureEfficCurve.Evaluate(temperature);
+        }
+
+        internal static float EvaluateAtmoDensityMult(float massOfAirColumn)
+        {
+            InitCurves();
+            return AtmosphericAttenutationAirMassMultiplier.Evaluate(massOfAirColumn);
+        }
+
+        internal static float EvaluateAtmoAngleMult(float sunZenithAngleDeg)
+        {
+            InitCurves();
+            return AtmosphericAttenutationSolarAngleMultiplier.Evaluate(sunZenithAngleDeg);
         }
 
         public static void InitCurves()

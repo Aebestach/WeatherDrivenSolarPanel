@@ -48,17 +48,38 @@ namespace WDSP_GenericFunctionModule
             public readonly List<CloudsObject> Layers = new List<CloudsObject>();
         }
 
+        private class WeatherCacheEntry
+        {
+            public int LastPhysicsStepId = -1;
+            public WeatherSample Sample;
+        }
+
         private const int BodyLayerCacheFrameLifetime = 120;
+        private const float EarlyExitDensityThreshold = 12.0f;
         private static HashSet<string> excludedLayers = new HashSet<string>();
         private static Dictionary<string, string> layerToCategoryMap = new Dictionary<string, string>();
         private static bool configLoaded = false;
-        private static Vessel cachedVessel = null;
-        private static CelestialBody cachedSun = null;
-        private static int cachedFrame = -1;
-        private static WeatherSample cachedWeatherSample = null;
         private static readonly Dictionary<string, CachedBodyLayers> bodyLayerCache = new Dictionary<string, CachedBodyLayers>();
         private static readonly List<CloudsObject> emptyCloudLayerList = new List<CloudsObject>();
         private static readonly Dictionary<string, SmoothedWeatherState> smoothedStates = new Dictionary<string, SmoothedWeatherState>();
+        private static readonly Dictionary<string, WeatherCacheEntry> weatherSampleCache = new Dictionary<string, WeatherCacheEntry>();
+
+        private static double _lastPhysicsUniversalTime = -1.0;
+        private static int _physicsStepId = 0;
+
+        public static int PhysicsStepId
+        {
+            get { return _physicsStepId; }
+        }
+
+        public static void NotifyPhysicsStep(double universalTime)
+        {
+            if (_lastPhysicsUniversalTime != universalTime)
+            {
+                _lastPhysicsUniversalTime = universalTime;
+                _physicsStepId++;
+            }
+        }
 
         private static void LoadConfig()
         {
@@ -154,34 +175,67 @@ namespace WDSP_GenericFunctionModule
 
         public static double VolumetricCloudTransmittance(CelestialBody sun, out string layerName)
         {
-            WeatherSample sample = SampleWeather(sun);
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            WeatherSample sample = SampleWeather(vessel, sun);
             layerName = sample.DominantLayerName;
             return sample.PowerFactor;
         }
 
+        /// <summary>Legacy entry point; uses the active vessel.</summary>
         public static WeatherSample SampleWeather(CelestialBody sun)
         {
+            return SampleWeather(FlightGlobals.ActiveVessel, sun);
+        }
+
+        public static WeatherSample SampleWeather(Vessel vessel, CelestialBody sun)
+        {
             LoadConfig();
-            Vessel vessel = FlightGlobals.ActiveVessel;
             if (sun == null || vessel == null)
             {
                 return new WeatherSample();
             }
 
-            if (cachedWeatherSample != null && cachedVessel == vessel && cachedSun == sun && cachedFrame == Time.frameCount)
+            string cacheKey = BuildWeatherCacheKey(vessel.id, sun.flightGlobalsIndex);
+            int sampleInterval = GetWeatherSampleInterval();
+            int rayMarchSteps = GetWeatherRayMarchSteps();
+
+            WeatherCacheEntry entry;
+            if (weatherSampleCache.TryGetValue(cacheKey, out entry) && entry.Sample != null)
             {
-                return cachedWeatherSample;
+                if (sampleInterval > 1 && (_physicsStepId - entry.LastPhysicsStepId) < sampleInterval)
+                {
+                    return entry.Sample;
+                }
             }
 
-            cachedWeatherSample = CalculateWeatherSample(vessel, sun);
-            cachedVessel = vessel;
-            cachedSun = sun;
-            cachedFrame = Time.frameCount;
+            WeatherSample sample = CalculateWeatherSample(vessel, sun, rayMarchSteps, entry != null ? entry.Sample : null);
+            if (entry == null)
+            {
+                entry = new WeatherCacheEntry();
+                weatherSampleCache[cacheKey] = entry;
+            }
 
-            return cachedWeatherSample;
+            entry.LastPhysicsStepId = _physicsStepId;
+            entry.Sample = sample;
+            return sample;
         }
 
-        private static WeatherSample CalculateWeatherSample(Vessel vessel, CelestialBody sun)
+        private static string BuildWeatherCacheKey(Guid vesselId, int sunIndex)
+        {
+            return vesselId.ToString("N") + ":" + sunIndex.ToString();
+        }
+
+        private static int GetWeatherSampleInterval()
+        {
+            return WeatherDrivenSolarPanel.WDSPGlobalConfig.WeatherSampleInterval;
+        }
+
+        private static int GetWeatherRayMarchSteps()
+        {
+            return WeatherDrivenSolarPanel.WDSPGlobalConfig.WeatherRayMarchSteps;
+        }
+
+        private static WeatherSample CalculateWeatherSample(Vessel vessel, CelestialBody sun, int maxStepCount, WeatherSample previousSample)
         {
             WeatherSample sample = new WeatherSample();
 
@@ -190,7 +244,7 @@ namespace WDSP_GenericFunctionModule
                 return sample;
             }
 
-            int stepCount = 50;
+            int stepCount = ResolveRayMarchSteps(maxStepCount, previousSample);
             float totalDensity = 0f;
             Vector3d toSun = sun.position - vessel.GetWorldPos3D();
             Vector3d lightDirection = toSun.normalized;
@@ -251,6 +305,11 @@ namespace WDSP_GenericFunctionModule
                                 sample.Category = category;
                             }
                         }
+
+                        if (totalDensity >= EarlyExitDensityThreshold)
+                        {
+                            break;
+                        }
                     }
 
                     currentPosition += stepSize * (Vector3)lightDirection;
@@ -276,6 +335,17 @@ namespace WDSP_GenericFunctionModule
             }
 
             return SmoothSample(vessel, sun, sample);
+        }
+
+        private static int ResolveRayMarchSteps(int maxStepCount, WeatherSample previousSample)
+        {
+            int steps = Math.Max(10, maxStepCount);
+            if (previousSample != null && previousSample.PowerFactor >= 0.98 && !previousSample.HasWeather)
+            {
+                steps = Math.Max(15, steps / 2);
+            }
+
+            return steps;
         }
 
         private static void SampleLocalWeather(Vessel vessel, string layerName, string category, CloudsRaymarchedVolume volume, ref WeatherSample sample, ref float dominantWeatherWeight)
