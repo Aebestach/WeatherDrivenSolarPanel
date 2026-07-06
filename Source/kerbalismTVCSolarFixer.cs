@@ -176,8 +176,9 @@ namespace WeatherDrivenSolarPanel
                 }
 
                 CelestialBody trackedSun = GetTrackedSun(__instance);
-                GenericFunctionModule.WeatherSample weatherSample = fixer.vessel.atmDensity > 0
-                    ? GenericFunctionModule.SampleWeather(trackedSun)
+                VesselSolarContext solarContext = VesselSolarContext.GetOrCompute(fixer.vessel);
+                GenericFunctionModule.WeatherSample weatherSample = fixer.vessel.atmDensity > 0 && solarContext != null
+                    ? solarContext.GetWeatherSample(trackedSun)
                     : new GenericFunctionModule.WeatherSample();
 
                 double weatherPowerFactor = fixer.vessel.atmDensity > 0 ? weatherSample.PowerFactor : 1.0;
@@ -485,28 +486,9 @@ namespace WeatherDrivenSolarPanel
         {
             if (configLoaded) return;
 
-            string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/globalConfig.cfg";
-            ConfigNode configNode = ConfigNode.Load(configFilePath);
-            if (configNode != null)
-            {
-                ConfigNode myPluginNode = configNode.GetNode("WDSP");
-                if (myPluginNode != null)
-                {
-                    if (myPluginNode.HasValue("switchTimeDecayWear"))
-                    {
-                        switchTimeDecayWear = bool.Parse(myPluginNode.GetValue("switchTimeDecayWear"));
-                    }
-                    if (myPluginNode.HasValue("switchWeatherAffectWear"))
-                    {
-                        switchWeatherAffectWear = bool.Parse(myPluginNode.GetValue("switchWeatherAffectWear"));
-                    }
-                }
-            }
-            else
-            {
-                Debug.LogError("[WDSP] Failed to load config file: " + configFilePath);
-            }
-
+            WDSPGlobalConfig.EnsureLoaded();
+            switchTimeDecayWear = WDSPGlobalConfig.SwitchTimeDecayWear;
+            switchWeatherAffectWear = WDSPGlobalConfig.SwitchWeatherAffectWear;
             configLoaded = true;
         }
     }
