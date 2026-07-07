@@ -1,92 +1,64 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{8D27838D-25CE-4414-92D4-EA2ADA791063}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>WeatherDrivenSolarPanel</RootNamespace>
+    <Version>7.1.0</Version>
+    <FileVersion>$(Version)</FileVersion>
     <AssemblyName>WeatherDrivenSolarPanel</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
+    <RootNamespace>WeatherDrivenSolarPanel</RootNamespace>
+    <TargetFramework>net481</TargetFramework>
+
+    <Description>Weather-driven solar panel output for True Volumetric Clouds.</Description>
+    <Product>WeatherDrivenSolarPanel</Product>
+    <Company>Aebestach</Company>
+    <Copyright>Copyright © 2024</Copyright>
+
+    <KSPBT_ModRoot>$(ProjectRootDir)GameData\$(AssemblyName)</KSPBT_ModRoot>
+    <KSPBT_ModPluginFolder>Plugin</KSPBT_ModPluginFolder>
+
+    <LangVersion>latest</LangVersion>
+    <DebugType>portable</DebugType>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>Output\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+
+  <PropertyGroup Condition=" '$(KSPBT_ModVersion)' != '' ">
+    <Version>$(KSPBT_ModVersion)</Version>
+    <FileVersion>$(Version)</FileVersion>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>none</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>..\GameData\WeatherDrivenSolarPanel\Plugin\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp-firstpass.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Atmosphere">
-      <HintPath>Plugins\Atmosphere.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="EVEManager">
-      <HintPath>Plugins\EVEManager.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL" />
-    <Reference Include="UnityEngine">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.AnimationModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\00. KSP DEVELOP PLUGINS\UnityEngine.PhysicsModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Utils">
-      <HintPath>Plugins\Utils.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <PackageReference Include="KSPBuildTools" Version="1.1.1" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="GenericFunctionModule.cs" />
-    <Compile Include="kerbalismTVCSolarFixer.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="VesselSolarContext.cs" />
-    <Compile Include="WDSPGlobalConfig.cs" />
-    <Compile Include="WeatherDrivenSolarPanel.cs" />
+    <ModReference Include="Atmosphere">
+      <DLLPath>GameData/EnvironmentalVisualEnhancements/Plugins/Atmosphere.dll</DLLPath>
+    </ModReference>
+    <ModReference Include="EVEManager">
+      <DLLPath>GameData/EnvironmentalVisualEnhancements/Plugins/EVEManager.dll</DLLPath>
+    </ModReference>
+    <ModReference Include="Utils">
+      <DLLPath>GameData/EnvironmentalVisualEnhancements/Plugins/Utils.dll</DLLPath>
+    </ModReference>
   </ItemGroup>
+
   <ItemGroup>
-    <Analyzer Include="..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll" />
+    <KSPVersionFile Include=".">
+      <Destination>$(KSPBT_ModRoot)/$(AssemblyName).version</Destination>
+      <URL>https://github.com/Aebestach/WeatherDrivenSolarPanel/releases/latest/download/WeatherDrivenSolarPanel.version</URL>
+      <Download>https://github.com/Aebestach/WeatherDrivenSolarPanel/releases/latest</Download>
+      <KSP_Version>1.12.5</KSP_Version>
+      <KSP_Version_Min>1.12.0</KSP_Version_Min>
+      <KSP_Version_Max>1.12.99</KSP_Version_Max>
+    </KSPVersionFile>
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Lib.Harmony">
-      <Version>2.4.2</Version>
-    </PackageReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+
+  <Target Name="DeployGameDataToKsp" AfterTargets="KSPBT_CopyDLLsToPluginFolder" Condition=" '$(KSPBT_GameRoot)' != '' ">
+    <PropertyGroup>
+      <_KspModDeployDir>$(KSPBT_GameRoot)/GameData/$(AssemblyName)</_KspModDeployDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ModDeployFiles Include="$(KSPBT_ModRoot)/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_ModDeployFiles)" DestinationFolder="$(_KspModDeployDir)/%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Message Text="Deployed GameData to $(_KspModDeployDir)" Importance="high" />
+  </Target>
 </Project>

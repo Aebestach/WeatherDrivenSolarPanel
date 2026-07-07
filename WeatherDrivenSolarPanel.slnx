@@ -1,0 +1,6 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Release" />
+  </Configurations>
+  <Project Path="Source/WeatherDrivenSolarPanel.csproj" Id="8d27838d-25ce-4414-92d4-ea2ada791063" />
+</Solution>
