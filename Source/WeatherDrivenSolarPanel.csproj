@@ -8,8 +8,6 @@
 
     <Description>Weather-driven solar panel output for True Volumetric Clouds.</Description>
     <Product>WeatherDrivenSolarPanel</Product>
-    <Company>Aebestach</Company>
-    <Copyright>Copyright © 2024</Copyright>
 
     <KSPBT_ModRoot>$(ProjectRootDir)GameData\$(AssemblyName)</KSPBT_ModRoot>
     <KSPBT_ModPluginFolder>Plugin</KSPBT_ModPluginFolder>
