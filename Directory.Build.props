@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectRootDir>$(MSBuildThisFileDirectory)</ProjectRootDir>
+    <SolutionDir Condition=" '$(SolutionDir)' == '' ">$(ProjectRootDir)</SolutionDir>
+    <SolutionName Condition=" '$(SolutionName)' == '' ">WeatherDrivenSolarPanel</SolutionName>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
+    <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
+  </PropertyGroup>
+</Project>
