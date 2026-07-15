@@ -8,6 +8,6 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
-    <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
+    <KSPBT_InstallCKANDependencies>true</KSPBT_InstallCKANDependencies>
   </PropertyGroup>
 </Project>
