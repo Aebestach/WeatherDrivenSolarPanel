@@ -225,8 +225,15 @@ namespace WeatherDrivenSolarPanel
 
             public static void ApplyPhysics(CelestialBody sun)
             {
-                WDSPStarInfo star = GetStars().FirstOrDefault(s => s.Sun == sun);
-                star?.ApplyPhysics();
+                List<WDSPStarInfo> stars = GetStars();
+                for (int i = 0; i < stars.Count; i++)
+                {
+                    if (stars[i].Sun == sun)
+                    {
+                        stars[i].ApplyPhysics();
+                        return;
+                    }
+                }
             }
 
             public void ApplyPhysics()
@@ -792,7 +799,7 @@ namespace WeatherDrivenSolarPanel
                 wearFactor = 1.0;
                 if ((vessel.situation != Vessel.Situations.PRELAUNCH) && switchTimeDecayWear) 
                 { 
-                    if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag) 
+                    if (timeEfficCurve?.Curve.length > 1 && ROFlag) 
                     { 
                         wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0)); 
                     }
@@ -941,7 +948,7 @@ namespace WeatherDrivenSolarPanel
                     startTime = universeTime;
                 }
 
-                if (timeEfficCurve?.Curve.keys.Length > 1 && ROFlag)
+                if (timeEfficCurve?.Curve.length > 1 && ROFlag)
                 {
                     wearFactorTime = timeEfficCurve.Evaluate((float)(timeTimer / 3600.0));
                 }
@@ -1705,7 +1712,7 @@ namespace WeatherDrivenSolarPanel
             public override FloatCurve GetTimeCurve()
             {
 
-                if (panelModule.timeEfficCurve?.Curve.keys.Length > 1)
+                if (panelModule.timeEfficCurve?.Curve.length > 1)
                 {
                     FloatCurve timeCurve = new FloatCurve();
                     foreach (Keyframe key in panelModule.timeEfficCurve.Curve.keys)
