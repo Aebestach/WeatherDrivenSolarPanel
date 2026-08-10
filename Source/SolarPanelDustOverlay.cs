@@ -176,9 +176,15 @@ namespace WeatherDrivenSolarPanel
         private const float StructureDustScale = 0.55f;
         private const float RebuildCheckInterval = 2f;
         private static readonly int DustAmountId = Shader.PropertyToID("_DustAmount");
+        private static readonly int DustStrengthId = Shader.PropertyToID("_DustStrength");
+        private static readonly int DustAxisUId = Shader.PropertyToID("_DustAxisU");
+        private static readonly int DustAxisVId = Shader.PropertyToID("_DustAxisV");
+        private static readonly int DustExtentId = Shader.PropertyToID("_DustExtent");
         private static readonly int SeedId = Shader.PropertyToID("_Seed");
         private static readonly int LightScaleId = Shader.PropertyToID("_LightScale");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        /// <summary>Approximate cellular spans across a square mesh.</summary>
+        private const float TargetClumpSpan = 4f;
         private static readonly Dictionary<Part, SolarPanelDustOverlay> SharedOverlays =
             new Dictionary<Part, SolarPanelDustOverlay>();
 
@@ -200,6 +206,9 @@ namespace WeatherDrivenSolarPanel
             internal Renderer Overlay;
             internal GameObject GameObject;
             internal float DustScale = 1f;
+            internal Vector4 DustAxisU = new Vector4(1f, 0f, 0f, 0f);
+            internal Vector4 DustAxisV = new Vector4(0f, 1f, 0f, 0f);
+            internal Vector4 DustExtent = new Vector4(4f, 4f, 0f, 0f);
         }
 
         private sealed class ClientState
@@ -377,7 +386,13 @@ namespace WeatherDrivenSolarPanel
                 // pattern to world position or floating-origin shifts.
                 float segmentSeed = seed + i * 1.713f;
                 propertyBlock.Clear();
-                propertyBlock.SetFloat(DustAmountId, scaledDust);
+                // Coverage progression is shared by every geometry mesh. DustScale controls
+                // only opacity, so structures are dimmer but still fully covered at 100%.
+                propertyBlock.SetFloat(DustAmountId, dustAmount);
+                propertyBlock.SetFloat(DustStrengthId, pair.DustScale);
+                propertyBlock.SetVector(DustAxisUId, pair.DustAxisU);
+                propertyBlock.SetVector(DustAxisVId, pair.DustAxisV);
+                propertyBlock.SetVector(DustExtentId, pair.DustExtent);
                 propertyBlock.SetFloat(SeedId, segmentSeed);
                 propertyBlock.SetFloat(LightScaleId, lightScale);
                 propertyBlock.SetColor(
@@ -691,13 +706,100 @@ namespace WeatherDrivenSolarPanel
             overlayRenderer.sharedMaterials = materials;
             overlayRenderer.enabled = false;
 
+            EvaluateDustProjection(
+                mesh,
+                out Vector4 dustAxisU,
+                out Vector4 dustAxisV,
+                out Vector4 dustExtent);
             overlays.Add(new OverlayRenderer
             {
                 Source = source,
                 Overlay = overlayRenderer,
                 GameObject = overlayObject,
-                DustScale = Mathf.Clamp(dustScale, 0.05f, 1f)
+                DustScale = Mathf.Clamp(dustScale, 0.05f, 1f),
+                DustAxisU = dustAxisU,
+                DustAxisV = dustAxisV,
+                DustExtent = dustExtent
             });
+        }
+
+        /// <summary>
+        /// Projects dust onto the two broadest mesh axes. Each axis receives a clump span
+        /// proportional to its physical length, with limits that keep narrow meshes from
+        /// becoming a single streak and long meshes from becoming high-frequency noise.
+        /// </summary>
+        private static void EvaluateDustProjection(
+            Mesh mesh,
+            out Vector4 axisU,
+            out Vector4 axisV,
+            out Vector4 extent)
+        {
+            if (mesh == null)
+            {
+                axisU = new Vector4(1f, 0f, 0f, 0f);
+                axisV = new Vector4(0f, 1f, 0f, 0f);
+                extent = new Vector4(4f, 4f, 0f, 0f);
+                return;
+            }
+
+            Bounds bounds = mesh.bounds;
+            Vector3 size = bounds.size;
+            int axisA;
+            int axisB;
+            if (size.x <= size.y && size.x <= size.z)
+            {
+                axisA = 1;
+                axisB = 2;
+            }
+            else if (size.y <= size.z)
+            {
+                axisA = 0;
+                axisB = 2;
+            }
+            else
+            {
+                axisA = 0;
+                axisB = 1;
+            }
+
+            if (GetAxis(size, axisB) > GetAxis(size, axisA))
+            {
+                int swap = axisA;
+                axisA = axisB;
+                axisB = swap;
+            }
+
+            float sizeA = Mathf.Max(GetAxis(size, axisA), 0.001f);
+            float sizeB = Mathf.Max(GetAxis(size, axisB), 0.001f);
+            float geometricSpan = Mathf.Max(Mathf.Sqrt(sizeA * sizeB), 0.05f);
+            float spanA = Mathf.Clamp(TargetClumpSpan * sizeA / geometricSpan, 2f, 8f);
+            float spanB = Mathf.Clamp(TargetClumpSpan * sizeB / geometricSpan, 2f, 8f);
+
+            axisU = BuildProjectionAxis(axisA, spanA, sizeA, GetAxis(bounds.center, axisA));
+            axisV = BuildProjectionAxis(axisB, spanB, sizeB, GetAxis(bounds.center, axisB));
+            extent = new Vector4(spanA, spanB, 0f, 0f);
+        }
+
+        private static Vector4 BuildProjectionAxis(int axis, float span, float size, float center)
+        {
+            Vector4 projection = Vector4.zero;
+            float scale = span / Mathf.Max(size, 0.001f);
+            projection[axis] = scale;
+            projection.w = -center * scale;
+            return projection;
+        }
+
+        private static float GetAxis(Vector3 value, int axis)
+        {
+            switch (axis)
+            {
+                case 0:
+                    return value.x;
+                case 1:
+                    return value.y;
+                default:
+                    return value.z;
+            }
         }
 
         private void SyncSourceVisibility(bool wantsDust)
