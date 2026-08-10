@@ -475,21 +475,70 @@ namespace WeatherDrivenSolarPanel
                 return;
             }
 
+            bool clearedModule = false;
+            if (part != null)
+            {
+                foreach (PartModule module in part.Modules)
+                {
+                    if (module is weatherDrivenSolarPanel panel
+                        && WDSPDustCleaning.HasDustToClean(panel.totalDustTime, panel.totalDustWearTime)
+                        && WDSPDustCleaning.IsWearLowEnoughToClean(panel.wearFactor))
+                    {
+                        panel.ClearDustStateAfterCleaning();
+                        clearedModule = true;
+                    }
+                }
+            }
+
+            if (!clearedModule)
+            {
+                ClearDustStateAfterCleaning();
+            }
+
+            bool updatedSharedOverlay = false;
+            if (part != null)
+            {
+                foreach (PartModule module in part.Modules)
+                {
+                    if (module is weatherDrivenSolarPanel panel)
+                    {
+                        panel.UpdateDustVisuals();
+                        updatedSharedOverlay = true;
+                    }
+                }
+            }
+            if (!updatedSharedOverlay)
+            {
+                UpdateDustVisuals();
+            }
+            WDSPDustCleaning.PostMessage(Localizer.Format("#WDSP_CleanDust_success"), true);
+        }
+
+        private void ClearDustStateAfterCleaning()
+        {
             totalDustTime = 0.0;
             totalDustWearTime = 0.0;
             RefreshWeatherWearFactor();
-            if (switchTimeDecayWear)
+
+            if (switchTimeDecayWear && switchWeatherAffectWear)
             {
                 wearFactor = wearFactorTime * wearFactorTVC;
+            }
+            else if (switchTimeDecayWear)
+            {
+                wearFactor = wearFactorTime;
             }
             else if (switchWeatherAffectWear)
             {
                 wearFactor = wearFactorTVC;
             }
+            else
+            {
+                wearFactor = 1.0;
+            }
+
             UpdateDustStatusPAW();
-            UpdateDustVisuals();
             SyncCleanDustEvent();
-            WDSPDustCleaning.PostMessage(Localizer.Format("#WDSP_CleanDust_success"), true);
         }
 
         [KSPEvent(active = true, guiActive = true, guiName = "#Kopernicus_SolarPanelFixer_Selecttrackedstar")]//Select Tracked Star
@@ -758,7 +807,7 @@ namespace WeatherDrivenSolarPanel
         {
             if (dustOverlay != null)
             {
-                dustOverlay.Dispose();
+                dustOverlay.Dispose(this);
                 dustOverlay = null;
             }
         }
@@ -1102,7 +1151,7 @@ namespace WeatherDrivenSolarPanel
         {
             if (dustOverlay != null)
             {
-                dustOverlay.Dispose();
+                dustOverlay.Dispose(this);
                 dustOverlay = null;
             }
 
@@ -1111,7 +1160,7 @@ namespace WeatherDrivenSolarPanel
                 return;
             }
 
-            dustOverlay = SolarPanelDustOverlay.Create(part, SolarPanel.GetPanelTransforms());
+            dustOverlay = SolarPanelDustOverlay.Create(part, SolarPanel.GetPanelTransforms(), this);
             if (dustOverlay == null)
             {
                 nextDustOverlayRetryTime = Time.unscaledTime + 5f;
@@ -1131,7 +1180,7 @@ namespace WeatherDrivenSolarPanel
                 // Difficulty toggle off: remove overlays immediately; exposure data is kept.
                 if (dustOverlay != null)
                 {
-                    dustOverlay.Dispose();
+                    dustOverlay.Dispose(this);
                     dustOverlay = null;
                 }
                 return;
@@ -1155,7 +1204,7 @@ namespace WeatherDrivenSolarPanel
             // Extended-only state, or dust pops off instead of folding with the panels.
             dustOverlay.TryRebuildIfIncomplete(part);
             float dustAmount = WDSPDustVisualMath.EvaluateDustAmountFromExposure(totalDustTime);
-            dustOverlay.Update(dustAmount, true);
+            dustOverlay.Update(this, dustAmount, true);
         }
 
         private void UpdateDustStatusPAW()

@@ -169,7 +169,7 @@ namespace WeatherDrivenSolarPanel
         }
     }
 
-    internal sealed class SolarPanelDustOverlay : IDisposable
+    internal sealed class SolarPanelDustOverlay
     {
         private const string OverlayPrefix = "WDSP_DustOverlay_";
         /// <summary>Booms / hinges dust a bit less than primary faces to limit transparent overdraw.</summary>
@@ -179,15 +179,19 @@ namespace WeatherDrivenSolarPanel
         private static readonly int SeedId = Shader.PropertyToID("_Seed");
         private static readonly int LightScaleId = Shader.PropertyToID("_LightScale");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly Dictionary<Part, SolarPanelDustOverlay> SharedOverlays =
+            new Dictionary<Part, SolarPanelDustOverlay>();
 
         private readonly List<OverlayRenderer> overlays = new List<OverlayRenderer>();
         private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
         private readonly float seed;
         private readonly Part part;
+        private readonly Dictionary<object, ClientState> clients = new Dictionary<object, ClientState>();
 
         private float lastDustAmount = -1f;
         private float lastLightScale = -1f;
         private bool lastVisible;
+        private bool lastWantsDust;
         private float nextRebuildCheckTime;
 
         private sealed class OverlayRenderer
@@ -196,6 +200,12 @@ namespace WeatherDrivenSolarPanel
             internal Renderer Overlay;
             internal GameObject GameObject;
             internal float DustScale = 1f;
+        }
+
+        private sealed class ClientState
+        {
+            internal float DustAmount;
+            internal bool Visible;
         }
 
         private SolarPanelDustOverlay(Part part)
@@ -208,10 +218,24 @@ namespace WeatherDrivenSolarPanel
                 + (partId % 100u) * (RebuildCheckInterval / 100f);
         }
 
-        /// <param name="panelAnchors">Ignored; kept so call sites stay compatible. Dust covers all geometry meshes.</param>
-        internal static SolarPanelDustOverlay Create(Part part, IEnumerable<Transform> panelAnchors)
+        /// <param name="panelAnchors">Ignored; kept so call sites stay compatible. One shared overlay covers each Part.</param>
+        internal static SolarPanelDustOverlay Create(
+            Part part,
+            IEnumerable<Transform> panelAnchors,
+            object owner)
         {
-            if (part == null || WDSPDustShaderLibrary.SharedMaterial == null)
+            if (part == null || owner == null)
+            {
+                return null;
+            }
+
+            if (SharedOverlays.TryGetValue(part, out SolarPanelDustOverlay shared))
+            {
+                shared.AddClient(owner);
+                return shared;
+            }
+
+            if (WDSPDustShaderLibrary.SharedMaterial == null)
             {
                 return null;
             }
@@ -220,9 +244,12 @@ namespace WeatherDrivenSolarPanel
             controller.Build(part);
             if (controller.overlays.Count == 0)
             {
-                controller.Dispose();
+                controller.DestroyOverlayObjects();
                 return null;
             }
+
+            controller.AddClient(owner);
+            SharedOverlays.Add(part, controller);
             return controller;
         }
 
@@ -276,24 +303,61 @@ namespace WeatherDrivenSolarPanel
             return anchors;
         }
 
-        internal void Update(float dustAmount, bool visible)
+        private void AddClient(object owner)
         {
-            dustAmount = Mathf.Clamp01(dustAmount);
+            if (!clients.ContainsKey(owner))
+            {
+                clients.Add(owner, new ClientState());
+            }
+        }
+
+        internal void Update(object owner, float dustAmount, bool visible)
+        {
+            if (owner == null)
+            {
+                return;
+            }
+
+            if (!clients.TryGetValue(owner, out ClientState client))
+            {
+                client = new ClientState();
+                clients.Add(owner, client);
+            }
+            client.DustAmount = Mathf.Clamp01(dustAmount);
+            client.Visible = visible;
+
+            // Multiple panel modules on one Part contribute to one renderer set. The visible
+            // overlay represents the dirtiest module without stacking transparent copies.
+            dustAmount = 0f;
+            visible = false;
+            foreach (ClientState state in clients.Values)
+            {
+                dustAmount = Mathf.Max(dustAmount, state.DustAmount);
+                visible |= state.Visible;
+            }
+
             float lightScale = EvaluateLightScale();
             bool parametersChanged = Mathf.Abs(lastDustAmount - dustAmount) > 0.001f
                 || Mathf.Abs(lastLightScale - lightScale) > 0.01f;
             bool visibilityChanged = lastVisible != visible;
 
             bool wantsDust = visible && dustAmount > 0.001f;
-            if (!parametersChanged && !visibilityChanged)
+            bool dustVisibilityChanged = lastWantsDust != wantsDust;
+            if (!parametersChanged && !visibilityChanged && !dustVisibilityChanged)
             {
-                SyncSourceVisibility(wantsDust);
+                // Clean panels keep every overlay disabled; there is nothing to synchronize
+                // until dust becomes visible again.
+                if (wantsDust)
+                {
+                    SyncSourceVisibility(true);
+                }
                 return;
             }
 
             lastDustAmount = dustAmount;
             lastLightScale = lightScale;
             lastVisible = visible;
+            lastWantsDust = wantsDust;
 
             // Fallback translucent shaders are nearly unlit; keep opacity, only dim colour in umbra.
             float fallbackBrightness = Mathf.Lerp(0.32f, 1f, lightScale);
@@ -338,7 +402,27 @@ namespace WeatherDrivenSolarPanel
             return vessel.directSunlight ? 1f : 0.08f;
         }
 
-        public void Dispose()
+        internal void Dispose(object owner)
+        {
+            if (owner == null || !clients.Remove(owner))
+            {
+                return;
+            }
+
+            if (clients.Count > 0)
+            {
+                return;
+            }
+
+            DestroyOverlayObjects();
+            if (SharedOverlays.TryGetValue(part, out SolarPanelDustOverlay shared)
+                && ReferenceEquals(shared, this))
+            {
+                SharedOverlays.Remove(part);
+            }
+        }
+
+        private void DestroyOverlayObjects()
         {
             for (int i = 0; i < overlays.Count; i++)
             {
@@ -389,11 +473,12 @@ namespace WeatherDrivenSolarPanel
                 return false;
             }
 
-            Dispose();
+            DestroyOverlayObjects();
             Build(part);
             lastDustAmount = -1f;
             lastLightScale = -1f;
             lastVisible = false;
+            lastWantsDust = false;
             return overlays.Count > 0;
         }
 

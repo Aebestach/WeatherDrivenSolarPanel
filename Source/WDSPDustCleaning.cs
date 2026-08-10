@@ -73,13 +73,11 @@ namespace WeatherDrivenSolarPanel
             return wearAmount < MaxWearFraction;
         }
 
-        /// <summary>Show the EVA PAW button when a qualified engineer is active and wear allows cleaning.</summary>
+        /// <summary>Show the EVA PAW button only when there is dust a qualified engineer can clean.</summary>
         internal static bool CanOfferCleanButton(double combinedWearFactor, double dustVisualSeconds, double dustWearSeconds)
         {
-            // Dust args kept for call-site consistency; presence is checked on click.
-            _ = dustVisualSeconds;
-            _ = dustWearSeconds;
-            return TryGetActiveEvaEngineer(out _)
+            return HasDustToClean(dustVisualSeconds, dustWearSeconds)
+                && TryGetActiveEvaEngineer(out _)
                 && IsWearLowEnoughToClean(combinedWearFactor);
         }
 

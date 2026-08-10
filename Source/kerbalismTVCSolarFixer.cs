@@ -95,7 +95,7 @@ namespace WeatherDrivenSolarPanel
         {
             if (solarFixer != null)
             {
-                return KerbalismSolarPanelFixerRuntimePatch.GetDouble(solarFixer, "wearFactor", wearFactorTVC);
+                return KerbalismSolarPanelFixerRuntimePatch.GetEffectiveWearFactor(solarFixer, this);
             }
             return wearFactorTVC;
         }
@@ -155,19 +155,16 @@ namespace WeatherDrivenSolarPanel
                 return;
             }
 
-            double previousTvc = Math.Max(1e-6, wearFactorTVC);
             totalDustTime = 0.0;
             totalDustWearTime = 0.0;
             wearFactorTVC = WDSPDustCleaning.EvaluateWeatherWearFactor(totalWeatherTime, totalDustWearTime);
 
             if (solarFixer != null)
             {
-                double currentCombined = KerbalismSolarPanelFixerRuntimePatch.GetDouble(solarFixer, "wearFactor", 1.0);
-                double kerbalismOnly = currentCombined / previousTvc;
                 KerbalismSolarPanelFixerRuntimePatch.SetValue(
                     solarFixer,
                     "wearFactor",
-                    (double)Mathf.Clamp01((float)(kerbalismOnly * wearFactorTVC)));
+                    KerbalismSolarPanelFixerRuntimePatch.GetEffectiveWearFactor(solarFixer, this));
             }
 
             UpdateDustStatusPAW();
@@ -180,7 +177,7 @@ namespace WeatherDrivenSolarPanel
         {
             if (dustOverlay != null)
             {
-                dustOverlay.Dispose();
+                dustOverlay.Dispose(this);
                 dustOverlay = null;
             }
         }
@@ -194,7 +191,7 @@ namespace WeatherDrivenSolarPanel
 
             if (dustOverlay != null)
             {
-                dustOverlay.Dispose();
+                dustOverlay.Dispose(this);
             }
 
             if (targetModule == null && solarFixer != null)
@@ -204,7 +201,8 @@ namespace WeatherDrivenSolarPanel
 
             dustOverlay = SolarPanelDustOverlay.Create(
                 part,
-                SolarPanelDustOverlay.FindPanelAnchors(part, targetModule));
+                SolarPanelDustOverlay.FindPanelAnchors(part, targetModule),
+                this);
             if (dustOverlay == null)
             {
                 nextDustOverlayRetryTime = Time.unscaledTime + 5f;
@@ -218,7 +216,7 @@ namespace WeatherDrivenSolarPanel
                 // Difficulty toggle off: remove overlays immediately; exposure data is kept.
                 if (dustOverlay != null)
                 {
-                    dustOverlay.Dispose();
+                    dustOverlay.Dispose(this);
                     dustOverlay = null;
                 }
                 return;
@@ -237,6 +235,7 @@ namespace WeatherDrivenSolarPanel
             {
                 dustOverlay.TryRebuildIfIncomplete(part);
                 dustOverlay.Update(
+                    this,
                     WDSPDustVisualMath.EvaluateDustAmountFromExposure(totalDustTime),
                     deployed);
             }
@@ -618,10 +617,45 @@ namespace WeatherDrivenSolarPanel
             return global::Sun.Instance != null ? global::Sun.Instance.sun : null;
         }
 
+        internal static double GetEffectiveWearFactor(object fixer, WDSPWeatherStatusDisplay wdsp)
+        {
+            LoadConfig();
+            double weatherWear = switchWeatherAffectWear && wdsp != null
+                ? wdsp.wearFactorTVC
+                : 1.0;
+            return Math.Max(
+                0.0,
+                Math.Min(1.0, GetKerbalismTimeWearFactor(fixer) * weatherWear));
+        }
+
+        private static double GetKerbalismTimeWearFactor(object fixer)
+        {
+            LoadConfig();
+            if (!switchTimeDecayWear)
+            {
+                return 1.0;
+            }
+
+            FloatCurve curve = GetValue(fixer, "timeEfficCurve") as FloatCurve;
+            double launchTime = GetDouble(fixer, "launchUT", -1.0);
+            if (curve?.Curve == null || curve.Curve.length <= 1 || launchTime < 0.0)
+            {
+                return 1.0;
+            }
+
+            float elapsedHours = (float)Math.Max(
+                0.0,
+                (Planetarium.GetUniversalTime() - launchTime) / 3600.0);
+            return Mathf.Clamp01(curve.Evaluate(elapsedHours));
+        }
+
         private static double CalculateCombinedWear(object fixer, WDSPWeatherStatusDisplay wdsp, bool updateTime, GenericFunctionModule.WeatherSample sample = null)
         {
             LoadConfig();
-            double kerbalismWearFactor = GetDouble(fixer, "wearFactor", 1.0);
+            // SolarPanelFixer can return before refreshing its private wearFactor while retracted
+            // or during startup. Evaluate its persisted curve directly instead of reusing a stale
+            // combined value written by this postfix.
+            double kerbalismWearFactor = GetKerbalismTimeWearFactor(fixer);
             if (!switchWeatherAffectWear)
             {
                 // Difficulty toggles are live; do not keep applying a persisted weather factor.
