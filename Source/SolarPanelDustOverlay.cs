@@ -174,6 +174,7 @@ namespace WeatherDrivenSolarPanel
         private const string OverlayPrefix = "WDSP_DustOverlay_";
         /// <summary>Booms / hinges dust a bit less than primary faces to limit transparent overdraw.</summary>
         private const float StructureDustScale = 0.55f;
+        private const float RebuildCheckInterval = 2f;
         private static readonly int DustAmountId = Shader.PropertyToID("_DustAmount");
         private static readonly int SeedId = Shader.PropertyToID("_Seed");
         private static readonly int LightScaleId = Shader.PropertyToID("_LightScale");
@@ -187,6 +188,7 @@ namespace WeatherDrivenSolarPanel
         private float lastDustAmount = -1f;
         private float lastLightScale = -1f;
         private bool lastVisible;
+        private float nextRebuildCheckTime;
 
         private sealed class OverlayRenderer
         {
@@ -199,7 +201,11 @@ namespace WeatherDrivenSolarPanel
         private SolarPanelDustOverlay(Part part)
         {
             this.part = part;
-            seed = part != null ? (part.flightID % 10000u) * 0.137f : 0f;
+            uint partId = part != null ? part.flightID : 0u;
+            seed = (partId % 10000u) * 0.137f;
+            // Stagger hierarchy checks so vessels with many panels do not scan in one frame.
+            nextRebuildCheckTime = Time.unscaledTime
+                + (partId % 100u) * (RebuildCheckInterval / 100f);
         }
 
         /// <param name="panelAnchors">Ignored; kept so call sites stay compatible. Dust covers all geometry meshes.</param>
@@ -303,13 +309,9 @@ namespace WeatherDrivenSolarPanel
                 float scaledDust = Mathf.Clamp01(dustAmount * pair.DustScale);
                 float fallbackAlpha = Mathf.Clamp01(scaledDust * 0.68f);
 
-                // Per-renderer seed from part + world position so cloned meshes diverge.
-                Vector3 center = pair.Source != null ? pair.Source.bounds.center : Vector3.zero;
-                float segmentSeed = seed
-                    + i * 1.713f
-                    + center.x * 0.19f
-                    + center.y * 0.37f
-                    + center.z * 0.23f;
+                // Stable per-renderer seed keeps cloned meshes distinct without tying the
+                // pattern to world position or floating-origin shifts.
+                float segmentSeed = seed + i * 1.713f;
                 propertyBlock.Clear();
                 propertyBlock.SetFloat(DustAmountId, scaledDust);
                 propertyBlock.SetFloat(SeedId, segmentSeed);
@@ -373,6 +375,13 @@ namespace WeatherDrivenSolarPanel
             {
                 return false;
             }
+
+            float now = Time.unscaledTime;
+            if (now < nextRebuildCheckTime)
+            {
+                return false;
+            }
+            nextRebuildCheckTime = now + RebuildCheckInterval;
 
             int expected = CountDustableRenderers(part);
             if (expected <= overlays.Count)

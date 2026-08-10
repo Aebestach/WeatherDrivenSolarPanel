@@ -54,7 +54,8 @@ Shader "WeatherDrivenSolarPanel/DustOverlay"
                 float4 position : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 worldNormal : TEXCOORD1;
-                float3 worldPos : TEXCOORD2;
+                float3 objectPos : TEXCOORD2;
+                float3 worldPos : TEXCOORD3;
             };
 
             v2f vert(appdata input)
@@ -63,6 +64,7 @@ Shader "WeatherDrivenSolarPanel/DustOverlay"
                 output.position = UnityObjectToClipPos(input.vertex);
                 output.uv = input.uv;
                 output.worldNormal = UnityObjectToWorldNormal(input.normal);
+                output.objectPos = input.vertex.xyz;
                 output.worldPos = mul(unity_ObjectToWorld, input.vertex).xyz;
                 return output;
             }
@@ -104,12 +106,13 @@ Shader "WeatherDrivenSolarPanel/DustOverlay"
             {
                 float dust = saturate(_DustAmount);
 
-                // World-space sampling: identical panel segment meshes no longer stamp the same UV pattern.
+                // Object-space sampling keeps the pattern attached through vessel motion and
+                // floating-origin shifts; the per-renderer seed still separates cloned meshes.
                 float scale = max(_NoiseScale, 0.05);
-                float3 wp = input.worldPos;
+                float3 objectPosition = input.objectPos;
                 float2 sampleUv = float2(
-                    wp.x * 0.37 + wp.z * 0.29,
-                    wp.y * 0.41 + wp.x * 0.19) * scale;
+                    objectPosition.x * 0.37 + objectPosition.z * 0.29,
+                    objectPosition.y * 0.41 + objectPosition.x * 0.19) * scale;
                 sampleUv += float2(_Seed * 1.7, _Seed * -1.1);
                 // Tiny UV jitter only for micro breakup, not the main shape.
                 sampleUv += (input.uv - 0.5) * 0.35;

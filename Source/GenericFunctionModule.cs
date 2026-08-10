@@ -70,8 +70,8 @@ namespace WDSP_GenericFunctionModule
         private static int _physicsStepId = 0;
 
         /// <summary>
-        /// Structural hints from EVE_CLOUDS volume nodes. CloudType multipliers default to 1,
-        /// so subsystem presence is the reliable dust vs rain discriminator.
+        /// Structural hints from EVE_CLOUDS volume nodes. They identify wet systems, but a
+        /// particle field alone is not proof of dust because snow and hail also use one.
         /// </summary>
         private struct EveLayerFeatures
         {
@@ -221,6 +221,23 @@ namespace WDSP_GenericFunctionModule
                 || lower.Contains("sandstorm")
                 || lower.Contains("duststorm")
                 || lower.Contains("dustdevil");
+        }
+
+        private static bool NameSuggestsPrecipitation(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName))
+            {
+                return false;
+            }
+
+            string lower = layerName.ToLowerInvariant();
+            return lower.Contains("snow")
+                || lower.Contains("blizzard")
+                || lower.Contains("hail")
+                || lower.Contains("sleet")
+                || lower.Contains("drizzle")
+                || lower.Contains("precip")
+                || (lower.Contains("rain") && !lower.Contains("terrain"));
         }
 
         private static List<CloudsObject> GetCloudLayersForBody(string body)
@@ -515,19 +532,21 @@ namespace WDSP_GenericFunctionModule
                 return configuredCategory;
             }
 
-            // EVE has no dust flag. Dust packs author a particleField without wet droplets/surfaces.
-            // CloudType densities default to 1, so subsystem presence matters more than raw multipliers.
+            // EVE has no dust flag and particleField is also used by snow and hail. Treat it only
+            // as supporting evidence; explicit configuration or an unambiguous name is required.
             if (features.Known)
             {
                 bool wetSystem = features.HasDroplets || features.HasWetSurfaces;
                 bool dryParticleSystem = features.HasParticleField && !wetSystem;
 
-                if (wetSystem && (precipitation > 0.05f || lightning > 0.05f))
+                if ((wetSystem && (precipitation > 0.05f || lightning > 0.05f))
+                    || (NameSuggestsPrecipitation(layerName)
+                        && (wetSystem || features.HasParticleField || precipitation > 0.05f)))
                 {
                     return CategoryPrecipitation;
                 }
 
-                if (dryParticleSystem && (particle > 0.05f || NameSuggestsDust(layerName)))
+                if (dryParticleSystem && NameSuggestsDust(layerName))
                 {
                     return CategoryDustStorm;
                 }
@@ -537,7 +556,12 @@ namespace WDSP_GenericFunctionModule
 
             // Config node not found: conservative fallback (never treat lightning alone as rain —
             // SPVE Duna dust storms can include lightning).
-            if (NameSuggestsDust(layerName) && particle >= precipitation)
+            if (NameSuggestsPrecipitation(layerName))
+            {
+                return CategoryPrecipitation;
+            }
+
+            if (NameSuggestsDust(layerName) && particle > 0.05f)
             {
                 return CategoryDustStorm;
             }
@@ -545,11 +569,6 @@ namespace WDSP_GenericFunctionModule
             if (precipitation > 0.05f)
             {
                 return CategoryPrecipitation;
-            }
-
-            if (particle > 0.08f && particle >= precipitation)
-            {
-                return CategoryDustStorm;
             }
 
             return CategoryCloudy;

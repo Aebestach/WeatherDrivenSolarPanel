@@ -422,16 +422,13 @@ namespace WeatherDrivenSolarPanel
                 object solarPanel = GetValue(__instance, "SolarPanel");
                 if (solarPanel == null || !IsPanelDeployed(GetValue(__instance, "state")))
                 {
+                    // Start a fresh exposure interval when the panel is deployed again.
+                    wdsp.timeWeather = -1.0;
                     SetValue(__instance, "wearFactor", CalculateCombinedWear(__instance, wdsp, false));
                     return;
                 }
 
                 double originalOutput = GetDouble(__instance, "currentOutput", 0.0);
-                if (originalOutput <= 1e-10)
-                {
-                    return;
-                }
-
                 CelestialBody trackedSun = GetTrackedSun(__instance);
                 VesselSolarContext solarContext = VesselSolarContext.GetOrCompute(fixer.vessel);
                 GenericFunctionModule.WeatherSample weatherSample = fixer.vessel.atmDensity > 0 && solarContext != null
@@ -445,10 +442,8 @@ namespace WeatherDrivenSolarPanel
                     ? Mathf.Clamp01((float)(combinedWearFactor / kerbalismWearFactor))
                     : 0.0;
 
-                double adjustedOutput = originalOutput * weatherPowerFactor * wdspWearFactor;
-                double delta = adjustedOutput - originalOutput;
-
-                SetValue(__instance, "currentOutput", adjustedOutput);
+                // Keep the fixer field authoritative even at night or while occluded so EVA
+                // cleaning always evaluates the actual combined wear.
                 SetValue(__instance, "wearFactor", combinedWearFactor);
 
                 if (fixer.vessel.atmDensity > 0)
@@ -459,6 +454,17 @@ namespace WeatherDrivenSolarPanel
                         switchWeatherAffectWear ? wdsp.totalWeatherTime + wdsp.totalDustWearTime : -1.0);
                 }
 
+                // Weather/dust exposure is independent of electrical output. The state update
+                // above must run even when Kerbalism reports zero generation.
+                if (originalOutput <= 1e-10)
+                {
+                    return;
+                }
+
+                double adjustedOutput = originalOutput * weatherPowerFactor * wdspWearFactor;
+                double delta = adjustedOutput - originalOutput;
+
+                SetValue(__instance, "currentOutput", adjustedOutput);
                 ApplyResourceDelta(fixer.vessel, delta);
             }
             catch (Exception ex)
@@ -616,7 +622,14 @@ namespace WeatherDrivenSolarPanel
         {
             LoadConfig();
             double kerbalismWearFactor = GetDouble(fixer, "wearFactor", 1.0);
-            double timeWeatherWear = wdsp.wearFactorTVC;
+            if (!switchWeatherAffectWear)
+            {
+                // Difficulty toggles are live; do not keep applying a persisted weather factor.
+                wdsp.totalWeatherTime = 0.0;
+                wdsp.totalDustWearTime = 0.0;
+                wdsp.wearFactorTVC = 1.0;
+            }
+            double timeWeatherWear = switchWeatherAffectWear ? wdsp.wearFactorTVC : 1.0;
 
             if (updateTime && sample != null && (switchWeatherAffectWear || WDSPGlobalConfig.SwitchDustVisuals))
             {
@@ -630,13 +643,11 @@ namespace WeatherDrivenSolarPanel
                 float dustSeverity = GenericFunctionModule.GetDustAccumulationSeverity(sample);
                 if (canAccumulate && dustSeverity > 0.05f)
                 {
+                    // Keep dust exposure independent from whether its overlay is rendered.
+                    wdsp.totalDustTime += deltaTime * dustSeverity;
                     if (switchWeatherAffectWear)
                     {
                         wdsp.totalDustWearTime += deltaTime * dustSeverity;
-                    }
-                    if (WDSPGlobalConfig.SwitchDustVisuals)
-                    {
-                        wdsp.totalDustTime += deltaTime * dustSeverity;
                     }
                 }
                 else if (switchWeatherAffectWear && canAccumulate && sample.WearSeverity > 0.05f)

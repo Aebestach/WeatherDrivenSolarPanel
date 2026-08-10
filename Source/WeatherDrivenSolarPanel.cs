@@ -598,7 +598,13 @@ namespace WeatherDrivenSolarPanel
 
             if (HighLogic.LoadedSceneIsFlight)
             {
-                if (state == PanelState.Extended || state == PanelState.ExtendedFixed || state == PanelState.Static)
+                bool deployed = state == PanelState.Extended
+                    || state == PanelState.ExtendedFixed
+                    || state == PanelState.Static;
+                if (deployed
+                    && vessel != null
+                    && vessel.atmDensity > 0
+                    && (switchWeatherAffectWear || switchDustVisuals))
                 {
                     timeWeather = Planetarium.GetUniversalTime();
                 }
@@ -955,13 +961,12 @@ namespace WeatherDrivenSolarPanel
                     float dustSeverity = GenericFunctionModule.GetDustAccumulationSeverity(latestWeatherSample);
                     if (canAccumulate && dustSeverity > 0.05f)
                     {
+                        // Dust exposure is gameplay state. The visuals switch only controls
+                        // rendering, so hidden dust must keep accumulating while wear is enabled.
+                        totalDustTime += deltaTime * dustSeverity;
                         if (switchWeatherAffectWear)
                         {
                             totalDustWearTime += deltaTime * dustSeverity;
-                        }
-                        if (switchDustVisuals)
-                        {
-                            totalDustTime += deltaTime * dustSeverity;
                         }
                     }
                     else if (switchWeatherAffectWear
@@ -992,6 +997,8 @@ namespace WeatherDrivenSolarPanel
             else
             {
                 Fields["weatherPanelStatus"].guiActive = false;
+                // Do not let time spent in orbit become exposure on the next atmospheric sample.
+                timeWeather = -1.0;
             }
 
             if ((exposureStatus != ExposureState.Exposed) && (totalSunExposure < 0.01))
@@ -1644,32 +1651,22 @@ namespace WeatherDrivenSolarPanel
 
         public void LoadConfig()
         {
-            bool previousTimeDecayWear = switchTimeDecayWear;
-            bool previousWeatherAffectWear = switchWeatherAffectWear;
-
             switchTimeDecayWear = WDSPGlobalConfig.SwitchTimeDecayWear;
             switchWeatherAffectWear = WDSPGlobalConfig.SwitchWeatherAffectWear;
             switchDustVisuals = WDSPGlobalConfig.SwitchDustVisuals;
 
-            // Only clear the unused accumulator when a switch actually changes.
-            if (previousTimeDecayWear == switchTimeDecayWear
-                && previousWeatherAffectWear == switchWeatherAffectWear)
+            if (!switchTimeDecayWear)
             {
-                return;
+                timeTimer = 0.0;
             }
 
-            if (switchTimeDecayWear && switchWeatherAffectWear)
+            if (!switchWeatherAffectWear)
             {
-                return;
-            }
-            if (switchTimeDecayWear && !switchWeatherAffectWear)
-            {
-                totalWeatherTime = 0;
-                totalDustWearTime = 0;
-            }
-            else if (switchWeatherAffectWear && !switchTimeDecayWear)
-            {
-                timeTimer = 0;
+                // Difficulty toggles are live. A persisted factor must not keep reducing
+                // output after weather wear has been disabled, including while in orbit.
+                totalWeatherTime = 0.0;
+                totalDustWearTime = 0.0;
+                wearFactorTVC = 1.0;
             }
         }
 
