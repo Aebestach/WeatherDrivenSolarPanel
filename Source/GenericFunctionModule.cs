@@ -35,6 +35,7 @@ namespace WDSP_GenericFunctionModule
             public double LastUT = -1.0;
             public float Severity = 0.0f;
             public float WearSeverity = 0.0f;
+            public float DustSeverity = 0.0f;
             public double PowerFactor = 1.0;
             public string Category = CategorySunny;
             public string LayerName = null;
@@ -59,6 +60,8 @@ namespace WDSP_GenericFunctionModule
         private static HashSet<string> excludedLayers = new HashSet<string>();
         private static Dictionary<string, string> layerToCategoryMap = new Dictionary<string, string>();
         private static bool configLoaded = false;
+        private static bool eveLayerFeaturesLoaded = false;
+        private static readonly Dictionary<string, EveLayerFeatures> eveLayerFeatures = new Dictionary<string, EveLayerFeatures>();
         private static readonly Dictionary<string, CachedBodyLayers> bodyLayerCache = new Dictionary<string, CachedBodyLayers>();
         private static readonly List<CloudsObject> emptyCloudLayerList = new List<CloudsObject>();
         private static readonly Dictionary<string, SmoothedWeatherState> smoothedStates = new Dictionary<string, SmoothedWeatherState>();
@@ -66,6 +69,19 @@ namespace WDSP_GenericFunctionModule
 
         private static double _lastPhysicsUniversalTime = -1.0;
         private static int _physicsStepId = 0;
+
+        /// <summary>
+        /// Structural hints from EVE_CLOUDS volume nodes. They identify wet systems, but a
+        /// particle field alone is not proof of dust because snow and hail also use one.
+        /// </summary>
+        private struct EveLayerFeatures
+        {
+            public bool Known;
+            public bool HasParticleField;
+            public bool HasDroplets;
+            public bool HasWetSurfaces;
+            public bool HasLightning;
+        }
 
         public static int PhysicsStepId
         {
@@ -124,6 +140,105 @@ namespace WDSP_GenericFunctionModule
                 return category;
             }
             return "Not Found!";
+        }
+
+        private static void EnsureEveLayerFeatures()
+        {
+            if (eveLayerFeaturesLoaded || GameDatabase.Instance == null)
+            {
+                return;
+            }
+
+            eveLayerFeatures.Clear();
+            ConfigNode[] roots = GameDatabase.Instance.GetConfigNodes("EVE_CLOUDS");
+            if (roots != null)
+            {
+                for (int rootIndex = 0; rootIndex < roots.Length; rootIndex++)
+                {
+                    ConfigNode root = roots[rootIndex];
+                    if (root == null)
+                    {
+                        continue;
+                    }
+
+                    // EVE_CLOUDS children are layer nodes (name/body/...). Prefer any node with a name.
+                    for (int i = 0; i < root.nodes.Count; i++)
+                    {
+                        ConfigNode objectNode = root.nodes[i];
+                        if (objectNode == null)
+                        {
+                            continue;
+                        }
+
+                        string layerName = objectNode.GetValue("name");
+                        if (string.IsNullOrEmpty(layerName) || eveLayerFeatures.ContainsKey(layerName))
+                        {
+                            continue;
+                        }
+
+                        ConfigNode volumeNode = objectNode.GetNode("layerRaymarchedVolumeV5")
+                            ?? objectNode.GetNode("layerRaymarchedVolume");
+                        if (volumeNode == null)
+                        {
+                            continue;
+                        }
+
+                        EveLayerFeatures features = new EveLayerFeatures
+                        {
+                            Known = true,
+                            HasParticleField = volumeNode.HasNode("particleField"),
+                            HasDroplets = volumeNode.HasNode("droplets"),
+                            HasWetSurfaces = volumeNode.HasNode("wetSurfaces"),
+                            HasLightning = volumeNode.HasNode("lightning")
+                        };
+                        eveLayerFeatures.Add(layerName, features);
+                    }
+                }
+            }
+
+            eveLayerFeaturesLoaded = true;
+        }
+
+        private static EveLayerFeatures GetEveLayerFeatures(string layerName)
+        {
+            EnsureEveLayerFeatures();
+            if (!string.IsNullOrEmpty(layerName) && eveLayerFeatures.TryGetValue(layerName, out EveLayerFeatures features))
+            {
+                return features;
+            }
+
+            return default(EveLayerFeatures);
+        }
+
+        private static bool NameSuggestsDust(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName))
+            {
+                return false;
+            }
+
+            string lower = layerName.ToLowerInvariant();
+            return lower.Contains("dust")
+                || lower.Contains("sandstorm")
+                || lower.Contains("duststorm")
+                || lower.Contains("dustdevil");
+        }
+
+        private static bool NameSuggestsPrecipitation(string layerName)
+        {
+            if (string.IsNullOrEmpty(layerName))
+            {
+                return false;
+            }
+
+            string lower = layerName.ToLowerInvariant();
+            return lower.Contains("snow")
+                || lower.Contains("blizzard")
+                || lower.Contains("hail")
+                || lower.Contains("sleet")
+                || lower.Contains("drizzle")
+                || lower.Contains("precip")
+                || (lower.Contains("rain") && !lower.Contains("terrain"));
         }
 
         private static List<CloudsObject> GetCloudLayersForBody(string body)
@@ -377,7 +492,8 @@ namespace WDSP_GenericFunctionModule
                 float lightning = volume.GetInterpolatedCloudTypeLightningFrequency(cloudType);
                 float particle = volume.GetInterpolatedCloudTypeParticleFieldDensity(cloudType);
 
-                string inferredCategory = InferCategory(category, precipitation, lightning);
+                EveLayerFeatures features = GetEveLayerFeatures(layerName);
+                string inferredCategory = InferCategory(layerName, category, precipitation, particle, lightning, features);
                 float weatherWeight = CalculateWeatherWeight(inferredCategory, coverage, density, precipitation, lightning, particle);
                 if (weatherWeight <= 0f)
                 {
@@ -386,28 +502,76 @@ namespace WDSP_GenericFunctionModule
 
                 sample.LocalCoverage = Mathf.Max(sample.LocalCoverage, coverage);
                 sample.PrecipitationSeverity = Mathf.Max(sample.PrecipitationSeverity, coverage * Mathf.Clamp01(Mathf.Max(precipitation, lightning)));
-                sample.DustSeverity = Mathf.Max(sample.DustSeverity, inferredCategory == CategoryDustStorm ? coverage * Mathf.Clamp01(Mathf.Max(particle, density)) : 0.0f);
                 sample.LightningSeverity = Mathf.Max(sample.LightningSeverity, coverage * Mathf.Clamp01(lightning));
 
                 if (weatherWeight > dominantWeatherWeight)
                 {
+                    float wearSeverity = CalculateWearSeverity(inferredCategory, weatherWeight);
                     dominantWeatherWeight = weatherWeight;
                     sample.DominantLayerName = layerName;
                     sample.Category = inferredCategory;
                     sample.Severity = Mathf.Clamp01(weatherWeight);
-                    sample.WearSeverity = CalculateWearSeverity(inferredCategory, weatherWeight);
+                    sample.WearSeverity = wearSeverity;
+                    sample.DustSeverity = inferredCategory == CategoryDustStorm
+                        || inferredCategory == CategoryVolcanoes
+                        ? wearSeverity
+                        : 0.0f;
                 }
             }
         }
 
-        private static string InferCategory(string configuredCategory, float precipitation, float lightning)
+        private static string InferCategory(
+            string layerName,
+            string configuredCategory,
+            float precipitation,
+            float particle,
+            float lightning,
+            EveLayerFeatures features)
         {
-            if (configuredCategory == CategoryPrecipitation || configuredCategory == CategoryDustStorm || configuredCategory == CategoryVolcanoes || configuredCategory == CategoryCloudy)
+            // Explicit cloudyLayerConfig entries always win (including volcano overrides).
+            if (configuredCategory == CategoryPrecipitation
+                || configuredCategory == CategoryDustStorm
+                || configuredCategory == CategoryVolcanoes
+                || configuredCategory == CategoryCloudy)
             {
                 return configuredCategory;
             }
 
-            if (Mathf.Max(precipitation, lightning) > 0.05f)
+            // EVE has no dust flag and particleField is also used by snow and hail. Treat it only
+            // as supporting evidence; explicit configuration or an unambiguous name is required.
+            if (features.Known)
+            {
+                bool wetSystem = features.HasDroplets || features.HasWetSurfaces;
+                bool dryParticleSystem = features.HasParticleField && !wetSystem;
+
+                if ((wetSystem && (precipitation > 0.05f || lightning > 0.05f))
+                    || (NameSuggestsPrecipitation(layerName)
+                        && (wetSystem || features.HasParticleField || precipitation > 0.05f)))
+                {
+                    return CategoryPrecipitation;
+                }
+
+                if (dryParticleSystem && NameSuggestsDust(layerName))
+                {
+                    return CategoryDustStorm;
+                }
+
+                return CategoryCloudy;
+            }
+
+            // Config node not found: conservative fallback (never treat lightning alone as rain —
+            // SPVE Duna dust storms can include lightning).
+            if (NameSuggestsPrecipitation(layerName))
+            {
+                return CategoryPrecipitation;
+            }
+
+            if (NameSuggestsDust(layerName) && particle > 0.05f)
+            {
+                return CategoryDustStorm;
+            }
+
+            if (precipitation > 0.05f)
             {
                 return CategoryPrecipitation;
             }
@@ -447,6 +611,15 @@ namespace WDSP_GenericFunctionModule
                 default:
                     return 0.0f;
             }
+        }
+
+        /// <summary>
+        /// Returns the independently smoothed dust / ash channel. This must not depend on the
+        /// display category, whose hysteresis can temporarily lag behind the current weather.
+        /// </summary>
+        public static float GetDustAccumulationSeverity(WeatherSample sample)
+        {
+            return sample != null ? Mathf.Clamp01(sample.DustSeverity) : 0.0f;
         }
 
         private static double CalculatePowerFactor(float sunTransmittance, string category)
@@ -491,6 +664,7 @@ namespace WDSP_GenericFunctionModule
 
             state.Severity = Mathf.Lerp(state.Severity, sample.Severity, alpha);
             state.WearSeverity = Mathf.Lerp(state.WearSeverity, sample.WearSeverity, alpha);
+            state.DustSeverity = Mathf.Lerp(state.DustSeverity, sample.DustSeverity, alpha);
             state.PowerFactor = state.PowerFactor + (sample.PowerFactor - state.PowerFactor) * alpha;
             state.LastUT = ut;
 
@@ -502,6 +676,7 @@ namespace WDSP_GenericFunctionModule
 
             sample.Severity = state.Severity;
             sample.WearSeverity = state.WearSeverity;
+            sample.DustSeverity = state.DustSeverity;
             sample.PowerFactor = Mathf.Clamp01((float)state.PowerFactor);
             sample.Category = state.Category;
             sample.DominantLayerName = state.LayerName ?? sample.DominantLayerName;
