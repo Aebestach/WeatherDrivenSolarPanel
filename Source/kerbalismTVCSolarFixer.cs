@@ -418,6 +418,17 @@ namespace WeatherDrivenSolarPanel
                     return;
                 }
 
+                LoadConfig();
+                if (!switchTimeDecayWear)
+                {
+                    // Kerbalism evaluates its own time curve before this postfix. Keep its
+                    // persisted epoch current while the feature is disabled so the next update
+                    // starts at full time efficiency, including panels that had reached zero.
+                    double currentTime = Planetarium.GetUniversalTime();
+                    SetValue(__instance, "launchUT", currentTime);
+                    wdsp.startTime = currentTime;
+                }
+
                 object solarPanel = GetValue(__instance, "SolarPanel");
                 if (solarPanel == null || !IsPanelDeployed(GetValue(__instance, "state")))
                 {
@@ -438,7 +449,7 @@ namespace WeatherDrivenSolarPanel
                 double combinedWearFactor = CalculateCombinedWear(__instance, wdsp, true, weatherSample);
                 double kerbalismWearFactor = GetDouble(__instance, "wearFactor", 1.0);
                 double wdspWearFactor = kerbalismWearFactor > 0.0
-                    ? Mathf.Clamp01((float)(combinedWearFactor / kerbalismWearFactor))
+                    ? Math.Max(0.0, combinedWearFactor / kerbalismWearFactor)
                     : 0.0;
 
                 // Keep the fixer field authoritative even at night or while occluded so EVA
