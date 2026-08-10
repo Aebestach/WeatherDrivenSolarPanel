@@ -66,7 +66,7 @@
 
 **视频演示**：[YouTube 链接](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2)
 
-* **完全兼容**：JNSQ, KSRSS, Kcalbeloh, RO (替换原版模块), Kerbalism。
+* **完全兼容**：JNSQ, KSRSS, Kcalbeloh, SPVE, RO (替换原版模块), Kerbalism。
 * **兼容请求**：若需支持其他行星包，欢迎在 GitHub 提交 Issue 或 PR。
 
 ---

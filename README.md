@@ -65,7 +65,7 @@ Drop the `WeatherDrivenSolarPanel` folder from the `GameData` folder into your g
 
 **Watch on YouTube**: [Link](https://youtu.be/IKnQO8X81A4?si=3_P_wxlH7WFWAL_2)
 
-* **Fully Compatible**: JNSQ, KSRSS, Kcalbeloh, RO (replaces stock modules), Kerbalism.
+* **Fully Compatible**: JNSQ, KSRSS, Kcalbeloh, SPVE, RO (replaces stock modules), Kerbalism.
 * **Requests**: Submit an issue or PR on GitHub for new planet pack support.
 
 ---
