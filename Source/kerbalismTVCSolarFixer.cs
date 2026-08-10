@@ -13,8 +13,17 @@ namespace WeatherDrivenSolarPanel
         [KSPField(guiActive = true, guiActiveEditor = false, guiName = "#WDSP_TVC_weatherStatus")]
         public string weatherPanelStatus = string.Empty;
 
+        [KSPField(guiActive = false, guiActiveUnfocused = false, guiActiveEditor = false, guiName = "#WDSP_PAW_dust")]
+        public string panelStatusDust = "0 %";
+
         [KSPField(isPersistant = true)]
         public double totalWeatherTime = 0.0;
+        // Visual dust exposure (dust-storm / volcano layers only).
+        [KSPField(isPersistant = true)]
+        public double totalDustTime = 0.0;
+        // Dust-storm / volcano contribution to weather wear (cleared by EVA cleaning).
+        [KSPField(isPersistant = true)]
+        public double totalDustWearTime = 0.0;
         [KSPField(isPersistant = true)]
         public double wearFactorTVC = 1.0;
         [KSPField(isPersistant = true)]
@@ -24,7 +33,14 @@ namespace WeatherDrivenSolarPanel
         [KSPField(isPersistant = true)]
         public double startTime = -1.0;
 
+        [UI_FloatRange(minValue = 0f, maxValue = 21300f, stepIncrement = 5f)]
+        [KSPField(guiActive = false, guiActiveEditor = false, guiName = "#WDSP_Debug_dustExposureDays", guiFormat = "F0", guiUnits = " d")]
+        public float debugDustExposureDays = 0f;
+
         private PartModule solarFixer;
+        private SolarPanelDustOverlay dustOverlay;
+        private float nextDustOverlayRetryTime;
+        private bool dustDebugUiBound;
 
         public override void OnStart(StartState state)
         {
@@ -35,6 +51,12 @@ namespace WeatherDrivenSolarPanel
             {
                 startTime = Planetarium.GetUniversalTime();
             }
+
+            if (state != StartState.Editor)
+            {
+                InitializeDustOverlay();
+                SetupDustDebugUI();
+            }
         }
 
         public override void OnUpdate()
@@ -44,8 +66,20 @@ namespace WeatherDrivenSolarPanel
                 solarFixer = FindSolarPanelFixer();
             }
 
-            if (solarFixer == null
-                || !KerbalismSolarPanelFixerRuntimePatch.IsPanelDeployed(KerbalismSolarPanelFixerRuntimePatch.GetValue(solarFixer, "state"))
+            object panelState = solarFixer != null
+                ? KerbalismSolarPanelFixerRuntimePatch.GetValue(solarFixer, "state")
+                : null;
+            string panelStateName = panelState != null ? panelState.ToString() : string.Empty;
+            bool deployed = solarFixer != null
+                && (KerbalismSolarPanelFixerRuntimePatch.IsPanelDeployed(panelState)
+                    || panelStateName == "Broken"
+                    || panelStateName == "Failure");
+            // Dust sticks to the mesh for the whole deploy/retract motion; only weather PAW uses deployed.
+            UpdateDustOverlay(true);
+            SyncDustDebugUI();
+            SyncCleanDustEvent();
+
+            if (!deployed
                 || solarFixer.vessel == null
                 || solarFixer.vessel.atmDensity <= 0
                 || KerbalismSolarPanelFixerRuntimePatch.GetDouble(solarFixer, "wearFactor", 1.0) == 0.0)
@@ -55,6 +89,235 @@ namespace WeatherDrivenSolarPanel
             }
 
             Fields["weatherPanelStatus"].guiActive = true;
+        }
+
+        private double GetDisplayedWearFactor()
+        {
+            if (solarFixer != null)
+            {
+                return KerbalismSolarPanelFixerRuntimePatch.GetDouble(solarFixer, "wearFactor", wearFactorTVC);
+            }
+            return wearFactorTVC;
+        }
+
+        private void SyncCleanDustEvent()
+        {
+            BaseEvent cleanEvent = Events["CleanDust"];
+            if (cleanEvent == null)
+            {
+                return;
+            }
+
+            bool offer = HighLogic.LoadedSceneIsFlight
+                && WDSPDustCleaning.CanOfferCleanButton(
+                    GetDisplayedWearFactor(),
+                    totalDustTime,
+                    totalDustWearTime);
+            cleanEvent.guiActive = false;
+            cleanEvent.guiActiveUnfocused = offer;
+            cleanEvent.externalToEVAOnly = true;
+            cleanEvent.unfocusedRange = WDSPDustCleaning.CleanUnfocusedRange;
+            cleanEvent.active = true;
+        }
+
+        [KSPEvent(guiActive = false, guiActiveEditor = false, guiName = "#WDSP_Debug_addDust")]
+        public void DebugAddDustExposure()
+        {
+            debugDustExposureDays = Mathf.Min(
+                WDSPDustVisualMath.MaxDebugExposureDays,
+                debugDustExposureDays + WDSPDustVisualMath.DebugExposureStepDays);
+            ApplyDebugDustExposureDays(true);
+        }
+
+        [KSPEvent(guiActive = false, guiActiveEditor = false, guiName = "#WDSP_Debug_clearDust")]
+        public void DebugClearDustExposure()
+        {
+            debugDustExposureDays = 0f;
+            ApplyDebugDustExposureDays(true);
+        }
+
+        [KSPEvent(
+            guiActive = false,
+            guiActiveEditor = false,
+            guiActiveUnfocused = true,
+            externalToEVAOnly = true,
+            unfocusedRange = WDSPDustCleaning.CleanUnfocusedRange,
+            guiName = "#WDSP_CleanDust")]
+        public void CleanDust()
+        {
+            double combinedWear = GetDisplayedWearFactor();
+            if (!WDSPDustCleaning.CanOfferCleanButton(combinedWear, totalDustTime, totalDustWearTime)
+                || !WDSPDustCleaning.HasDustToClean(totalDustTime, totalDustWearTime))
+            {
+                WDSPDustCleaning.PostMessage(
+                    WDSPDustCleaning.FailReason(combinedWear, totalDustTime, totalDustWearTime),
+                    false);
+                return;
+            }
+
+            double previousTvc = Math.Max(1e-6, wearFactorTVC);
+            totalDustTime = 0.0;
+            totalDustWearTime = 0.0;
+            wearFactorTVC = WDSPDustCleaning.EvaluateWeatherWearFactor(totalWeatherTime, totalDustWearTime);
+
+            if (solarFixer != null)
+            {
+                double currentCombined = KerbalismSolarPanelFixerRuntimePatch.GetDouble(solarFixer, "wearFactor", 1.0);
+                double kerbalismOnly = currentCombined / previousTvc;
+                KerbalismSolarPanelFixerRuntimePatch.SetValue(
+                    solarFixer,
+                    "wearFactor",
+                    (double)Mathf.Clamp01((float)(kerbalismOnly * wearFactorTVC)));
+            }
+
+            UpdateDustStatusPAW();
+            UpdateDustOverlay(true);
+            SyncCleanDustEvent();
+            WDSPDustCleaning.PostMessage(Localizer.Format("#WDSP_CleanDust_success"), true);
+        }
+
+        public void OnDestroy()
+        {
+            if (dustOverlay != null)
+            {
+                dustOverlay.Dispose();
+                dustOverlay = null;
+            }
+        }
+
+        internal void InitializeDustOverlay(PartModule targetModule = null)
+        {
+            if (!WDSPGlobalConfig.SwitchDustVisuals || part == null)
+            {
+                return;
+            }
+
+            if (dustOverlay != null)
+            {
+                dustOverlay.Dispose();
+            }
+
+            if (targetModule == null && solarFixer != null)
+            {
+                targetModule = KerbalismSolarPanelFixerRuntimePatch.GetTargetPanelModule(solarFixer);
+            }
+
+            dustOverlay = SolarPanelDustOverlay.Create(
+                part,
+                SolarPanelDustOverlay.FindPanelAnchors(part, targetModule));
+            if (dustOverlay == null)
+            {
+                nextDustOverlayRetryTime = Time.unscaledTime + 5f;
+            }
+        }
+
+        private void UpdateDustOverlay(bool deployed)
+        {
+            if (!WDSPGlobalConfig.SwitchDustVisuals)
+            {
+                // Difficulty toggle off: remove overlays immediately; exposure data is kept.
+                if (dustOverlay != null)
+                {
+                    dustOverlay.Dispose();
+                    dustOverlay = null;
+                }
+                return;
+            }
+
+            if (dustOverlay == null)
+            {
+                if (Time.unscaledTime < nextDustOverlayRetryTime)
+                {
+                    return;
+                }
+                InitializeDustOverlay();
+            }
+
+            if (dustOverlay != null)
+            {
+                dustOverlay.TryRebuildIfIncomplete(part);
+                dustOverlay.Update(
+                    WDSPDustVisualMath.EvaluateDustAmountFromExposure(totalDustTime),
+                    deployed);
+            }
+        }
+
+        private void UpdateDustStatusPAW()
+        {
+            bool showDust = WDSPGlobalConfig.SwitchDustVisuals;
+            // guiActiveUnfocused is required for EVA PAWs (active vessel is the kerbal, not the craft).
+            Fields["panelStatusDust"].guiActive = showDust;
+            Fields["panelStatusDust"].guiActiveUnfocused = showDust;
+            if (!showDust)
+            {
+                return;
+            }
+
+            float dustAmount = WDSPDustVisualMath.EvaluateDustAmountFromExposure(totalDustTime);
+            panelStatusDust = dustAmount.ToString("P0");
+        }
+
+        private void SetupDustDebugUI()
+        {
+            UpdateDustStatusPAW();
+
+            bool showDebug = WDSPGlobalConfig.SwitchDustDebug && WDSPGlobalConfig.SwitchDustVisuals;
+            Fields["debugDustExposureDays"].guiActive = showDebug;
+            Events["DebugAddDustExposure"].guiActive = showDebug;
+            Events["DebugClearDustExposure"].guiActive = showDebug;
+            if (!showDebug)
+            {
+                return;
+            }
+
+            debugDustExposureDays = WDSPDustVisualMath.ExposureSecondsToDays(totalDustTime);
+            if (Fields["debugDustExposureDays"].uiControlFlight is UI_FloatRange range)
+            {
+                range.maxValue = WDSPDustVisualMath.MaxDebugExposureDays;
+            }
+            if (!dustDebugUiBound)
+            {
+                dustDebugUiBound = true;
+                Fields["debugDustExposureDays"].uiControlFlight.onFieldChanged += OnDebugDustExposureChanged;
+            }
+        }
+
+        private void SyncDustDebugUI()
+        {
+            UpdateDustStatusPAW();
+
+            bool showDebug = WDSPGlobalConfig.SwitchDustDebug && WDSPGlobalConfig.SwitchDustVisuals;
+            if (!showDebug)
+            {
+                Fields["debugDustExposureDays"].guiActive = false;
+                Events["DebugAddDustExposure"].guiActive = false;
+                Events["DebugClearDustExposure"].guiActive = false;
+                return;
+            }
+
+            if (!Fields["debugDustExposureDays"].guiActive)
+            {
+                SetupDustDebugUI();
+            }
+
+            float dustDays = WDSPDustVisualMath.ExposureSecondsToDays(totalDustTime);
+            if (Mathf.Abs(dustDays - debugDustExposureDays) > 0.25f)
+            {
+                debugDustExposureDays = dustDays;
+            }
+        }
+
+        private void OnDebugDustExposureChanged(BaseField field, object oldValue)
+        {
+            ApplyDebugDustExposureDays(true);
+        }
+
+        private void ApplyDebugDustExposureDays(bool deployed)
+        {
+            // Debug slider only adjusts dust/volcano exposure — not precipitation wear.
+            totalDustTime = WDSPDustVisualMath.ExposureDaysToSeconds(debugDustExposureDays);
+            UpdateDustStatusPAW();
+            UpdateDustOverlay(deployed);
         }
 
         private PartModule FindSolarPanelFixer()
@@ -85,13 +348,9 @@ namespace WeatherDrivenSolarPanel
         private const string HarmonyId = "WeatherDrivenSolarPanel";
         private const string Prefix = "#WDSP_TVC_";
 
-        private static readonly FloatCurve weatherTimeEfficCurve = new FloatCurve();
-        private static readonly FloatCurve timeEfficCurveNonRO = new FloatCurve();
         private static readonly Dictionary<Type, Dictionary<string, MemberInfo>> memberCache = new Dictionary<Type, Dictionary<string, MemberInfo>>();
 
         private static bool patched;
-        private static bool configLoaded;
-        private static bool curvesLoaded;
         private static bool switchWeatherAffectWear;
         private static bool switchTimeDecayWear;
 
@@ -160,8 +419,6 @@ namespace WeatherDrivenSolarPanel
                     return;
                 }
 
-                InitCurves();
-
                 object solarPanel = GetValue(__instance, "SolarPanel");
                 if (solarPanel == null || !IsPanelDeployed(GetValue(__instance, "state")))
                 {
@@ -196,7 +453,10 @@ namespace WeatherDrivenSolarPanel
 
                 if (fixer.vessel.atmDensity > 0)
                 {
-                    wdsp.weatherPanelStatus = CalculateStatus(wdsp, weatherSample, switchWeatherAffectWear ? wdsp.totalWeatherTime : -1.0);
+                    wdsp.weatherPanelStatus = CalculateStatus(
+                        wdsp,
+                        weatherSample,
+                        switchWeatherAffectWear ? wdsp.totalWeatherTime + wdsp.totalDustWearTime : -1.0);
                 }
 
                 ApplyResourceDelta(fixer.vessel, delta);
@@ -212,12 +472,16 @@ namespace WeatherDrivenSolarPanel
             try
             {
                 LoadConfig();
-                InitCurves();
 
                 PartModule fixer = __instance as PartModule;
                 WDSPWeatherStatusDisplay wdsp = fixer != null && fixer.part != null
                     ? fixer.part.FindModuleImplementing<WDSPWeatherStatusDisplay>()
                     : null;
+
+                if (wdsp != null)
+                {
+                    wdsp.InitializeDustOverlay(GetTargetPanelModule(fixer));
+                }
 
                 if (wdsp == null || (switchTimeDecayWear && switchWeatherAffectWear))
                 {
@@ -227,6 +491,7 @@ namespace WeatherDrivenSolarPanel
                 if (switchTimeDecayWear)
                 {
                     wdsp.totalWeatherTime = 0;
+                    wdsp.totalDustWearTime = 0;
                 }
                 else if (switchWeatherAffectWear)
                 {
@@ -262,13 +527,24 @@ namespace WeatherDrivenSolarPanel
             }
         }
 
+        internal static PartModule GetTargetPanelModule(PartModule fixer)
+        {
+            if (fixer == null)
+            {
+                return null;
+            }
+
+            object solarPanel = GetValue(fixer, "SolarPanel");
+            return GetValue(solarPanel, "TargetModule") as PartModule;
+        }
+
         public static bool IsPanelDeployed(object state)
         {
             string value = state != null ? state.ToString() : string.Empty;
             return value == "Extended" || value == "ExtendedFixed" || value == "Static";
         }
 
-        private static void SetValue(object instance, string name, object value)
+        public static void SetValue(object instance, string name, object value)
         {
             if (instance == null) return;
             MemberInfo member = GetMember(instance.GetType(), name);
@@ -342,20 +618,41 @@ namespace WeatherDrivenSolarPanel
             double kerbalismWearFactor = GetDouble(fixer, "wearFactor", 1.0);
             double timeWeatherWear = wdsp.wearFactorTVC;
 
-            if (updateTime && switchWeatherAffectWear && sample != null && sample.WearSeverity > 0.05f)
+            if (updateTime && sample != null && (switchWeatherAffectWear || WDSPGlobalConfig.SwitchDustVisuals))
             {
                 Vessel vessel = (fixer as PartModule)?.vessel;
                 double currentTime = Planetarium.GetUniversalTime();
-                if (vessel != null && vessel.situation != Vessel.Situations.PRELAUNCH)
+                bool canAccumulate = vessel != null
+                    && vessel.situation != Vessel.Situations.PRELAUNCH
+                    && wdsp.timeWeather > 0;
+                double deltaTime = canAccumulate ? (currentTime - wdsp.timeWeather) : 0.0;
+
+                float dustSeverity = GenericFunctionModule.GetDustAccumulationSeverity(sample);
+                if (canAccumulate && dustSeverity > 0.05f)
                 {
-                    if (wdsp.timeWeather > 0)
+                    if (switchWeatherAffectWear)
                     {
-                        wdsp.totalWeatherTime += (currentTime - wdsp.timeWeather) * sample.WearSeverity;
+                        wdsp.totalDustWearTime += deltaTime * dustSeverity;
+                    }
+                    if (WDSPGlobalConfig.SwitchDustVisuals)
+                    {
+                        wdsp.totalDustTime += deltaTime * dustSeverity;
                     }
                 }
+                else if (switchWeatherAffectWear && canAccumulate && sample.WearSeverity > 0.05f)
+                {
+                    // Precipitation (and other non-dust wear) — not removed by EVA cleaning.
+                    wdsp.totalWeatherTime += deltaTime * sample.WearSeverity;
+                }
+
                 wdsp.timeWeather = currentTime;
-                timeWeatherWear = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(wdsp.totalWeatherTime / 21600.0)));
-                wdsp.wearFactorTVC = timeWeatherWear;
+                if (switchWeatherAffectWear)
+                {
+                    timeWeatherWear = WDSPDustCleaning.EvaluateWeatherWearFactor(
+                        wdsp.totalWeatherTime,
+                        wdsp.totalDustWearTime);
+                    wdsp.wearFactorTVC = timeWeatherWear;
+                }
             }
 
             if (updateTime && switchTimeDecayWear && IsPanelDeployed(GetValue(fixer, "state")))
@@ -429,7 +726,9 @@ namespace WeatherDrivenSolarPanel
                         if (sample.Severity > 0.05f)
                         {
                             if (updateWear && sample.WearSeverity > 0.05f)
-                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                                wdsp.wearFactorTVC = WDSPDustCleaning.EvaluateWeatherWearFactor(
+                                    wdsp.totalWeatherTime,
+                                    wdsp.totalDustWearTime);
                             statusText = precipitationAffect;
                             color = "5F9F9F";
                         }
@@ -438,7 +737,9 @@ namespace WeatherDrivenSolarPanel
                         if (sample.Severity > 0.05f)
                         {
                             if (updateWear && sample.WearSeverity > 0.05f)
-                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                                wdsp.wearFactorTVC = WDSPDustCleaning.EvaluateWeatherWearFactor(
+                                    wdsp.totalWeatherTime,
+                                    wdsp.totalDustWearTime);
                             statusText = dustStormAffect;
                             color = "5F9F9F";
                         }
@@ -447,7 +748,9 @@ namespace WeatherDrivenSolarPanel
                         if (sample.Severity > 0.05f)
                         {
                             if (updateWear && sample.WearSeverity > 0.05f)
-                                wdsp.wearFactorTVC = Mathf.Clamp01(weatherTimeEfficCurve.Evaluate((float)(weatherTime / 21600.0)));
+                                wdsp.wearFactorTVC = WDSPDustCleaning.EvaluateWeatherWearFactor(
+                                    wdsp.totalWeatherTime,
+                                    wdsp.totalDustWearTime);
                             statusText = volcanoesAffect;
                             color = "5F9F9F";
                         }
@@ -458,38 +761,11 @@ namespace WeatherDrivenSolarPanel
             return $"<color=#{color}>{statusText}</color>";
         }
 
-        private static void InitCurves()
-        {
-            if (curvesLoaded) return;
-
-            timeEfficCurveNonRO.Add(0f, 1.0f, -3.521126E-05f, -3.521126E-05f);
-            timeEfficCurveNonRO.Add(4260f, 0.85f, -3.638498E-05f, -3.638498E-05f);
-            timeEfficCurveNonRO.Add(6390f, 0.77f, -3.521128E-05f, -3.521128E-05f);
-            timeEfficCurveNonRO.Add(8520f, 0.7f, -2.582158E-05f, -2.582158E-05f);
-            timeEfficCurveNonRO.Add(10650f, 0.66f, -4.694836E-05f, -4.694836E-05f);
-            timeEfficCurveNonRO.Add(12780f, 0.5f, -8.450705E-05f, -8.450705E-05f);
-            timeEfficCurveNonRO.Add(14910f, 0.3f, -6.455398E-05f, -6.455398E-05f);
-            timeEfficCurveNonRO.Add(19170f, 0.15f, -5.28169E-05f, -5.28169E-05f);
-            timeEfficCurveNonRO.Add(21300f, 0f, -7.042254E-05f, -7.042254E-05f);
-
-            weatherTimeEfficCurve.Add(0f, 1f, -0.0004694836f, -0.0004694836f);
-            weatherTimeEfficCurve.Add(426f, 0.8f, -0.0005868545f, -0.0005868545f);
-            weatherTimeEfficCurve.Add(852f, 0.5f, -0.000528169f, -0.000528169f);
-            weatherTimeEfficCurve.Add(1278f, 0.35f, -0.0003521127f, -0.0003521127f);
-            weatherTimeEfficCurve.Add(1704f, 0.2f, -0.0004107981f, -0.0004107981f);
-            weatherTimeEfficCurve.Add(2130f, 0f, -0.0004694836f, -0.0004694836f);
-
-            curvesLoaded = true;
-        }
-
         private static void LoadConfig()
         {
-            if (configLoaded) return;
-
-            WDSPGlobalConfig.EnsureLoaded();
+            // Always refresh so Difficulty Settings changes apply without restart.
             switchTimeDecayWear = WDSPGlobalConfig.SwitchTimeDecayWear;
             switchWeatherAffectWear = WDSPGlobalConfig.SwitchWeatherAffectWear;
-            configLoaded = true;
         }
     }
 }

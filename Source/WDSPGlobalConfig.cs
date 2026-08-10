@@ -1,9 +1,11 @@
 using System;
-using UnityEngine;
 
 namespace WeatherDrivenSolarPanel
 {
-    /// <summary>Global WDSP settings loaded from GlobalConfig.cfg.</summary>
+    /// <summary>
+    /// Runtime settings. Values come from Difficulty Settings when a game is loaded;
+    /// otherwise the compile-time defaults below are used.
+    /// </summary>
     public static class WDSPGlobalConfig
     {
         public const int DefaultWeatherRayMarchSteps = 50;
@@ -11,63 +13,69 @@ namespace WeatherDrivenSolarPanel
         public const int MinWeatherRayMarchSteps = 10;
         public const int MaxWeatherRayMarchSteps = 50;
 
-        private static bool _loaded;
-        private static bool _switchTimeDecayWear = true;
-        private static bool _switchWeatherAffectWear = true;
-        private static int _weatherRayMarchSteps = DefaultWeatherRayMarchSteps;
-        private static int _weatherSampleInterval = DefaultWeatherSampleInterval;
-
         public static bool SwitchTimeDecayWear
         {
-            get { EnsureLoaded(); return _switchTimeDecayWear; }
+            get
+            {
+                WDSPGameplayParameters gameplay = WDSPGameplayParameters.Instance;
+                return gameplay != null ? gameplay.switchTimeDecayWear : true;
+            }
         }
 
         public static bool SwitchWeatherAffectWear
         {
-            get { EnsureLoaded(); return _switchWeatherAffectWear; }
+            get
+            {
+                WDSPGameplayParameters gameplay = WDSPGameplayParameters.Instance;
+                return gameplay != null ? gameplay.switchWeatherAffectWear : true;
+            }
+        }
+
+        public static bool SwitchDustVisuals
+        {
+            get
+            {
+                WDSPGameplayParameters gameplay = WDSPGameplayParameters.Instance;
+                return gameplay != null ? gameplay.switchDustVisuals : true;
+            }
+        }
+
+        public static bool SwitchDustDebug
+        {
+            get
+            {
+                WDSPPerformanceParameters performance = WDSPPerformanceParameters.Instance;
+                return performance != null && performance.switchDustDebug;
+            }
         }
 
         public static int WeatherRayMarchSteps
         {
-            get { EnsureLoaded(); return _weatherRayMarchSteps; }
+            get
+            {
+                WDSPPerformanceParameters performance = WDSPPerformanceParameters.Instance;
+                int steps = performance != null
+                    ? performance.weatherRayMarchSteps
+                    : DefaultWeatherRayMarchSteps;
+                return ClampInt(steps, MinWeatherRayMarchSteps, MaxWeatherRayMarchSteps);
+            }
         }
 
-        /// <summary>Minimum physics steps between full TVC weather resamples (1 = every step).</summary>
         public static int WeatherSampleInterval
         {
-            get { EnsureLoaded(); return _weatherSampleInterval; }
+            get
+            {
+                WDSPPerformanceParameters performance = WDSPPerformanceParameters.Instance;
+                int interval = performance != null
+                    ? performance.weatherSampleInterval
+                    : DefaultWeatherSampleInterval;
+                return Math.Max(1, interval);
+            }
         }
 
         public static void EnsureLoaded()
         {
-            if (_loaded) return;
-
-            string configFilePath = KSPUtil.ApplicationRootPath + "GameData/WeatherDrivenSolarPanel/Config/globalConfig.cfg";
-            ConfigNode configNode = ConfigNode.Load(configFilePath);
-            if (configNode != null)
-            {
-                ConfigNode pluginNode = configNode.GetNode("WDSP");
-                if (pluginNode != null)
-                {
-                    if (pluginNode.HasValue("switchTimeDecayWear"))
-                        _switchTimeDecayWear = bool.Parse(pluginNode.GetValue("switchTimeDecayWear"));
-
-                    if (pluginNode.HasValue("switchWeatherAffectWear"))
-                        _switchWeatherAffectWear = bool.Parse(pluginNode.GetValue("switchWeatherAffectWear"));
-
-                    if (pluginNode.HasValue("weatherRayMarchSteps"))
-                        _weatherRayMarchSteps = ClampInt(int.Parse(pluginNode.GetValue("weatherRayMarchSteps")), MinWeatherRayMarchSteps, MaxWeatherRayMarchSteps);
-
-                    if (pluginNode.HasValue("weatherSampleInterval"))
-                        _weatherSampleInterval = Math.Max(1, int.Parse(pluginNode.GetValue("weatherSampleInterval")));
-                }
-            }
-            else
-            {
-                Debug.LogError("[WDSP] Failed to load config file: " + configFilePath);
-            }
-
-            _loaded = true;
+            // Kept for call-site compatibility; settings are difficulty-driven.
         }
 
         private static int ClampInt(int value, int min, int max)

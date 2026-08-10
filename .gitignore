@@ -74,7 +74,9 @@ StyleCopReport.xml
 *_p.c
 *_h.h
 *.ilk
+# VS leftover; do NOT ignore Unity Assets *.meta (those must be committed).
 *.meta
+!Unity/**/*.meta
 *.obj
 *.iobj
 *.pch
@@ -192,17 +194,12 @@ publish/
 # in these scripts will be unencrypted
 PublishScripts/
 
-# NuGet Packages
+# NuGet Packages (keep Unity/Packages/manifest.json trackable)
 *.nupkg
-# NuGet Symbol Packages
 *.snupkg
-# The packages folder can be ignored because of Package Restore
-**/[Pp]ackages/*
-# except build/, which is used as an MSBuild target.
-!**/[Pp]ackages/build/
-# Uncomment if necessary however generally it will be regenerated when needed
-#!**/[Pp]ackages/repositories.config
-# NuGet v3's project.json files produces more ignorable files
+packages/
+!Unity/**/Packages/
+!Unity/**/Packages/**
 *.nuget.props
 *.nuget.targets
 
@@ -361,3 +358,36 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Unity shader project generated files (keep Unity/**/Assets + ProjectSettings + Packages)
+Unity/**/Library/
+Unity/**/Temp/
+Unity/**/Obj/
+Unity/**/Logs/
+Unity/**/UserSettings/
+Unity/**/MemoryCaptures/
+Unity/**/Build/
+Unity/**/*.csproj
+Unity/**/*.sln
+Unity/**/*.suo
+Unity/**/*.user
+Unity/**/*.userprefs
+Unity/**/*.pidb
+Unity/**/*.booproj
+Unity/**/*.svd
+Unity/**/*.pdb
+Unity/**/*.mdb
+Unity/**/*.opendb
+Unity/**/*.VC.db
+Unity/**/.vs/
+Unity/**/sysinfo.txt
+Unity/**/*.apk
+Unity/**/*.unitypackage
+
+# Local MSBuild path override (example file stays tracked)
+*.props.user
+!*.props.user.example
+
+# AssetBundle side-products (keep the .bundle release asset)
+GameData/WeatherDrivenSolarPanel/Shaders/*.manifest
+GameData/WeatherDrivenSolarPanel/Shaders/Shaders
