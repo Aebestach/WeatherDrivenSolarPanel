@@ -35,6 +35,7 @@ namespace WDSP_GenericFunctionModule
             public double LastUT = -1.0;
             public float Severity = 0.0f;
             public float WearSeverity = 0.0f;
+            public float DustSeverity = 0.0f;
             public double PowerFactor = 1.0;
             public string Category = CategorySunny;
             public string LayerName = null;
@@ -501,16 +502,20 @@ namespace WDSP_GenericFunctionModule
 
                 sample.LocalCoverage = Mathf.Max(sample.LocalCoverage, coverage);
                 sample.PrecipitationSeverity = Mathf.Max(sample.PrecipitationSeverity, coverage * Mathf.Clamp01(Mathf.Max(precipitation, lightning)));
-                sample.DustSeverity = Mathf.Max(sample.DustSeverity, inferredCategory == CategoryDustStorm ? coverage * Mathf.Clamp01(Mathf.Max(particle, density)) : 0.0f);
                 sample.LightningSeverity = Mathf.Max(sample.LightningSeverity, coverage * Mathf.Clamp01(lightning));
 
                 if (weatherWeight > dominantWeatherWeight)
                 {
+                    float wearSeverity = CalculateWearSeverity(inferredCategory, weatherWeight);
                     dominantWeatherWeight = weatherWeight;
                     sample.DominantLayerName = layerName;
                     sample.Category = inferredCategory;
                     sample.Severity = Mathf.Clamp01(weatherWeight);
-                    sample.WearSeverity = CalculateWearSeverity(inferredCategory, weatherWeight);
+                    sample.WearSeverity = wearSeverity;
+                    sample.DustSeverity = inferredCategory == CategoryDustStorm
+                        || inferredCategory == CategoryVolcanoes
+                        ? wearSeverity
+                        : 0.0f;
                 }
             }
         }
@@ -609,22 +614,12 @@ namespace WDSP_GenericFunctionModule
         }
 
         /// <summary>
-        /// Dust visuals only accumulate under dust-storm / volcano layers (not rain/clouds),
-        /// while still using the same severity scale as weather wear for those categories.
+        /// Returns the independently smoothed dust / ash channel. This must not depend on the
+        /// display category, whose hysteresis can temporarily lag behind the current weather.
         /// </summary>
         public static float GetDustAccumulationSeverity(WeatherSample sample)
         {
-            if (sample == null)
-            {
-                return 0.0f;
-            }
-
-            if (sample.Category == CategoryDustStorm || sample.Category == CategoryVolcanoes)
-            {
-                return sample.WearSeverity;
-            }
-
-            return 0.0f;
+            return sample != null ? Mathf.Clamp01(sample.DustSeverity) : 0.0f;
         }
 
         private static double CalculatePowerFactor(float sunTransmittance, string category)
@@ -669,6 +664,7 @@ namespace WDSP_GenericFunctionModule
 
             state.Severity = Mathf.Lerp(state.Severity, sample.Severity, alpha);
             state.WearSeverity = Mathf.Lerp(state.WearSeverity, sample.WearSeverity, alpha);
+            state.DustSeverity = Mathf.Lerp(state.DustSeverity, sample.DustSeverity, alpha);
             state.PowerFactor = state.PowerFactor + (sample.PowerFactor - state.PowerFactor) * alpha;
             state.LastUT = ut;
 
@@ -680,6 +676,7 @@ namespace WDSP_GenericFunctionModule
 
             sample.Severity = state.Severity;
             sample.WearSeverity = state.WearSeverity;
+            sample.DustSeverity = state.DustSeverity;
             sample.PowerFactor = Mathf.Clamp01((float)state.PowerFactor);
             sample.Category = state.Category;
             sample.DominantLayerName = state.LayerName ?? sample.DominantLayerName;
